@@ -149,3 +149,17 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   `npx tsc --noEmit` clean. `npm run lint` clean.
 - Deviations: none.
 - Shortcuts: none.
+
+## 2026-08-31 — Task 9: Distributor score domain (`src/domain/scoring.ts`)
+- `src/domain/scoring.ts`: `type ScoreKey` (9-value union: retailerNetwork, categoryExperience,
+  geoCoverage, salesmen, deliveryInfra, workingCapital, brandPortfolio, reputation, willingness),
+  `ScoreInputs` / `ScoreWeights` record types, `Grade` type ('A' | 'B' | 'C' | 'REJECT'),
+  `KEYS` array (canonical order), `clamp01(n)` (bounds to [0,1]), `assertWeightsValid(weights)`
+  (throws if sum ≠ 100 ±0.001), `grade(score)` (A≥80, B≥65, C≥50, else REJECT),
+  `scoreDistributor(inputs, weights)` (returns {score, grade} where score = round(Σ clamp01(inputs[k]) * weights[k])).
+- TDD: `tests/domain/scoring.test.ts` — RED (module not found); GREEN after implementation = 4 passed
+  (perfect 100/A score, missing/clamped inputs, grade thresholds B→70%, weight validation).
+- Tests: `npm test -- scoring` -> 1 file / 4 passed. `npm test` -> 7 files / 19 passed.
+  `npx tsc --noEmit` clean. `npm run lint` clean (eslint-disable-next-line on `as any` test casts).
+- Deviations: none.
+- Shortcuts: none.
