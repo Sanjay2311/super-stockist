@@ -217,7 +217,7 @@ Money columns are integer paise. All tables carry `id`, `created_at`, `updated_a
     are flagged. A hot lead (grade `A` or probability >= config threshold) with no next
     action is a **critical** flag.
 
-- **`distributor_daily_reports`** / **`employee_daily_reports`** (spec section 22) — one
+- **`employee_daily_reports`** (spec section 22) — one
   row per employee per date: `areas_visited` (jsonb), `notes`, `blockers`, `submitted_at`.
   All activity/outcome counts are **derived** from `activities` / `tasks` / `orders` /
   `quotations`, not stored here.
@@ -373,7 +373,8 @@ from `app_config`, validated to sum to 100. Returns score 0-100 and grade A/B/C/
 `computePricing(product, prices, costInputs, config)`:
 
 - Waterfall display: MRP -> retailer margin -> distributor margin -> super-stockist margin
-  -> manufacturer cost.
+  -> super-stockist cost (`ss_billing_price`, or landed cost when known). Manufacturer's
+  own cost is not shown (not known — see Ponytail-debt).
 - Net contribution/unit = selling price - product cost - scheme - freight - loading -
   sales incentive - samples - other.
 - Returns: gross margin (paise and %), net contribution (paise and %), max permissible
