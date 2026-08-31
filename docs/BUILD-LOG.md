@@ -283,3 +283,44 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   fallback text added to the screen (`No territories yet.`) so the fresh page is not
   a blank box.
 - Shortcuts: `overlapsExclusive` stub (PONYTAIL-DEBT, cleared in Milestone 2).
+
+## 2026-08-31 — Task 11: CRM schema (leads, activities, tasks, daily reports) + zod schemas
+- `src/server/db/schema/crm.ts` (new): four `pgTable` defs per spec §4.3 column lists —
+  `distributor_leads` (38 cols; defaults `stage='IDENTIFIED'`, `probability=5`,
+  `grade='REJECT'`, `score=0`, `expected_ff_monthly_potential=0`,
+  `delivery_vehicles/salesmen/retailer_network=0`, `score_inputs='{}'::jsonb`,
+  `is_demo=false`; `deleted_at` + `created_at`/`updated_at`), `activities` (14 cols,
+  immutable — `created_at`/`deleted_at` only, no `updated_at`), `tasks` (17 cols,
+  `priority='NORMAL'`, `status='PENDING'`, `source='MANUAL'`; soft-delete),
+  `employee_daily_reports` (9 cols, `areas_visited='[]'::jsonb`,
+  `uniqueIndex('emp_daily_report_uk').on(orgId, employeeId, reportDate)`, no
+  `updated_at`/`deleted_at`). All paise columns `bigint(..., { mode: 'number' })`.
+  Added `export * from './crm'` to the `schema/index.ts` barrel.
+- `src/lib/schemas.ts` (append — territory exports untouched): `ACTIVITY_TYPES`,
+  `TASK_TYPES`, `TASK_PRIORITIES`, `TASK_STATUSES`, `LOST_REASONS`,
+  `WORKING_CAPITAL_LEVELS` (`as const`); `leadSchema`+`LeadInput`,
+  `scoreInputsSchema`, `activitySchema`+`ActivityInput` (`.refine` lead-or-distributor),
+  `taskSchema`+`TaskInput`, `dailyReportSchema`+`DailyReportInput`. zod v3→v4:
+  `z.string().uuid()` → `z.uuid()`, `z.string().email()` → `z.email()`; everything
+  else in the brief snippet (`.coerce`, `.or(z.literal(''))`, `.partial()`,
+  `.refine()`, `z.enum(<const array>)`) is unchanged in v4.
+- Migration `drizzle/0003_shiny_pride.sql`: `db:generate` emitted the 4 tables +
+  the unique index. Hand-appended one statement drizzle-kit does not emit:
+  `ALTER TABLE "activities" ADD CONSTRAINT "activities_target_ck" CHECK ("lead_id"
+  IS NOT NULL OR "distributor_id" IS NOT NULL);` (preceded by a
+  `--> statement-breakpoint`). `db:migrate` clean; `pg_get_constraintdef` confirms
+  the CHECK is live. `// ponytail:` note in `crm.ts` + PONYTAIL-DEBT row.
+- TDD: `tests/services/crm-schema.test.ts` — RED (`Cannot find package
+  '@/server/db/schema/crm'`) → after schema + migration, GREEN = 2 passed
+  (lead insert defaults stage/probability/grade/potential; second daily-report
+  insert for same `(orgId, employeeId, reportDate)` rejects on the unique index).
+- Tests: `npm test -- crm-schema` → 1 file / 2 passed. Full `npm test` → 11 files /
+  28 passed, run twice, stable. `npx tsc --noEmit` clean. `npm run lint` clean.
+  `npm run dev` boots, compiles `/` + `/middleware` with no errors, 307 → `/login`
+  (unauthenticated, expected — no Supabase locally).
+- Deviations: `business_name`/`contact_person`/`phone` are `NOT NULL` (trust-boundary
+  integrity; matches `employees` style and the test's always-provided values); the
+  brief's column list did not annotate them either way. `occurred_at` / `submitted_at`
+  are `NOT NULL` with no DB default (callers set them; `activitySchema` defaults
+  `occurredAt` in app code).
+- Shortcuts: hand-edited migration for the `activities` CHECK (PONYTAIL-DEBT).
