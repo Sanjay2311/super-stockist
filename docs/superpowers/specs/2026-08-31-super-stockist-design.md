@@ -64,6 +64,8 @@ The app never behaves as if Sanjay independently issues GST invoices.
 | 11 | Charts / forms | Recharts; React Hook Form + Zod |
 | 12 | Money storage | Integer **paise** |
 | 13 | Locale | `en-IN`, INR lakh/crore formatting, `DD MMM YYYY`, timezone `Asia/Kolkata` |
+| 14 | Billing Request to F&F | Under Option 1, each internal order generates a 1:1 **Billing Request** telling F&F what to invoice the distributor and at what rate. Delivered as a print-to-PDF page + copy-to-WhatsApp text + manual "mark sent"; app email-send deferred. |
+| 15 | Open items | All resolved to their defaults (Section 12): GST slabs 12%/5%, `billing_direction = FF_TO_DISTRIBUTOR`, 1 kg MRP suggested by the recommendation engine. |
 
 ---
 
@@ -299,9 +301,30 @@ section 17).
 - **`order_items`** — `product_id`, `qty`, `rate`, `discount`, `scheme_id`, `gst_pct`,
   `net_amount`.
 - **`manufacturer_invoices`** (billing-entity data) — `ff_invoice_number`,
-  `invoice_date`, `distributor_id`, optional `order_id`, `invoice_amount`, `gst_amount`,
-  `payment_status`, `billing_direction`. UI labels this section "Manufacturer / Billing
-  Entity Data".
+  `invoice_date`, `distributor_id`, optional `order_id`, optional `billing_request_id`,
+  `invoice_amount`, `gst_amount`, `payment_status`, `billing_direction`. UI labels this
+  section "Manufacturer / Billing Entity Data".
+
+- **`billing_requests`** (spec addition — Option 1 flow) — the document that tells F&F what
+  to invoice the distributor and at what rate. **Generated 1:1 from an `order`.** Fields:
+  `order_id` (unique), `distributor_id` (bill-to), `ship_to` (distributor address or an
+  alternate), `request_number` (internal ref), `request_date`, `status` (`DRAFT` ->
+  `SENT_TO_FF` -> `FF_ACKNOWLEDGED` -> `INVOICED` -> `CANCELLED`), `sent_at`, `notes`,
+  `total_value` (paise), `total_gst` (paise). Moving to `SENT_TO_FF` is a manual action
+  ("Mark as sent to F&F") after the owner sends the PDF/text out of band; it also advances
+  the parent order to `SENT_TO_FF`.
+- **`billing_request_items`** — `product_id`, `qty`, `bill_rate` (paise — the rate F&F
+  should invoice the distributor at: the approved distributor selling price with
+  scheme/discount applied, copied from the order line), `gst_pct`, `line_total`. Floor/
+  approval rules were already enforced upstream on the order/quotation.
+- **Delivery to F&F** — a print-optimised HTML route (`/billing-requests/[id]/print`, no PDF
+  library — browser "Save as PDF") plus a "Copy WhatsApp text" action that yields a plain
+  summary. Owner sends it themselves, then marks it sent. Cost price and SS margin are
+  **never** on the F&F-facing document.
+- **Reconciliation** — when F&F returns the real invoice, the owner records
+  `ff_invoice_number` / date / amount on the linked `manufacturer_invoices` row; the
+  service flags any line where the F&F-invoiced rate differs from `bill_rate`, and any
+  header total mismatch.
 - **`inventory_batches`** — `product_id`, `batch_number`, `mfg_date`, `expiry_date`
   (must be after `mfg_date` — Rule), `qty_received`, cached `qty_available`,
   `warehouse_location`, `landed_cost_per_unit` (paise), `purchase_item_id`, `status`
@@ -482,6 +505,10 @@ near-expiry value.
 Products & Pricing, Orders, Inventory, Purchases / Stock In, Collections, Employee
 Activity, Schemes & Discounts, Reports, Settings.
 
+Billing Requests are not a separate nav item — they live inside the Orders screen (each
+order shows its Billing Request panel: generate, preview/print, copy WhatsApp text, mark
+sent, reconcile).
+
 Role-aware. Desktop: left sidebar. Mobile: bottom nav with the field set (Today's Tasks,
 Pipeline, Distributors, Quotations, +More). `SALES` sees no cost prices, no Inventory
 financials, no Collections, no Settings, no org financials — enforced server-side.
@@ -617,8 +644,10 @@ global filters -> CSV/Excel exports.
 
 ### Phase 2
 
-Orders -> Manufacturer Invoices -> Inventory + batches + FEFO -> Purchases / Stock-In ->
-Receivables / Collections -> Expenses -> inventory alerts in the scan.
+Orders -> **Billing Request to F&F** (print-to-PDF page + WhatsApp text + manual
+mark-sent + invoice reconciliation) -> Manufacturer Invoices -> Inventory + batches + FEFO
+-> Purchases / Stock-In -> Receivables / Collections -> Expenses -> inventory alerts in
+the scan.
 
 ### Phase 3
 
@@ -638,7 +667,7 @@ self-check on the diff - focused commit. Verify the app actually runs before mov
   profitability, FEFO) and critical services.
 - **Playwright** for: login + RBAC; create lead -> move through pipeline -> convert to
   distributor; create quotation -> price approval; record purchase -> stock-in -> order ->
-  FEFO issue; Command Center renders with seed data.
+  billing request -> mark sent -> FEFO issue; Command Center renders with seed data.
 
 ---
 
@@ -652,20 +681,24 @@ self-check on the diff - focused commit. Verify the app actually runs before mov
 | Permission matrix in code, no per-user overrides | Role-level only | Migration to a `permissions` table |
 | Command Center KPIs partly materialised nightly | Up to ~24 h stale for heavy aggregates | Move to incremental refresh or a materialised view |
 | Commission-% revenue path is a config stub | Only buy-sell spread computes | Implement commission branch in pricing + profitability |
+| Billing Request sent out of band (PDF/WhatsApp) + manual mark-sent | No delivery record, no auto status | Add app email-send (Resend) + a real PDF file via `pdf-lib` |
 
 ---
 
 ## 12. Open items
 
-- **GST slabs per category** — seeded defaults (Dry Fruits 12%; Seeds / Flours / Spices
-  5%). Confirm actual slabs with F&F / a CA; adjust `gst_pct` seed.
-- **`billing_direction` default** — set to `FF_TO_DISTRIBUTOR` (Option 1). Change in
-  Settings if the finalised arrangement is Option 2.
-- **1 kg pack MRP** — absent in the sheet. Recommendation engine suggests one; owner
-  confirms or the pack is sold without a printed MRP.
+All resolved to the defaults below (owner: "for Open items use default"). Listed so they
+can be revisited later.
+
+- **GST slabs per category** — seeded defaults: Dry Fruits 12%; Seeds / Flours / Spices
+  5%. Editable per SKU; confirm actual slabs with F&F / a CA later.
+- **`billing_direction`** — `FF_TO_DISTRIBUTOR` (Option 1). The Billing Request flow
+  (Section 4.7) assumes this. Switch in Settings if the finalised arrangement is Option 2
+  (then Receivables/Collections becomes an active ledger rather than read-only monitoring).
+- **1 kg pack MRP** — absent in the sheet. The recommendation engine suggests one; the
+  pack can also be sold without a printed MRP.
 - **F&F price volatility** — Almond, Cashew, Pista, Pumpkin Seeds flagged
-  `volatile_price`; the recommendation engine applies a wider floor buffer and the alert
-  scan can nudge for price review (Phase 3).
+  `volatile_price`; wider floor buffer + a Phase 3 price-review nudge.
 
 ---
 
@@ -673,9 +706,10 @@ self-check on the diff - focused commit. Verify the app actually runs before mov
 
 Working application - database schema (Drizzle migrations) - seed/demo data - Supabase
 Auth - role-based access - Command Center + Executive Dashboard - Distributor CRM -
-employee management - inventory - orders - pricing + recommendation engine - receivables -
-reports - notifications - audit logs - README - environment setup - migration instructions
-- sample login credentials - implemented-features list - future-enhancements list.
+employee management - inventory - orders - Billing Request to F&F - pricing +
+recommendation engine - receivables - reports - notifications - audit logs - README -
+environment setup - migration instructions - sample login credentials -
+implemented-features list - future-enhancements list.
 
 ---
 
