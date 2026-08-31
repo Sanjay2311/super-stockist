@@ -126,3 +126,26 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   of a forced-mock redirect test.
 - Shortcuts: e2e skipped; per-layout gate not middleware; `requireUser()`
   redirect branch untested (all in PONYTAIL-DEBT).
+
+## 2026-08-31 — Task 8: Pipeline domain (`src/domain/pipeline.ts`)
+- `src/domain/pipeline.ts`: `type LeadStage` (14-value union: IDENTIFIED through
+  ON_HOLD), `STAGES` array (canonical order 0..13), `OPEN_STAGES` (excludes LOST,
+  REPEAT_ORDER, ON_HOLD = 11 stages), `stageRank(stage): number` (index in STAGES),
+  `weightedPipelineValue(potential, pct): Paise` (round(potential * pct / 100)),
+  `FUNNEL_STEPS` array (10 dashboard funnel steps), `funnelConversion(leads)` (filters
+  out LOST/ON_HOLD, counts active leads by stage progression, calculates stage-to-stage
+  conversion %).
+- TDD: `tests/domain/pipeline.test.ts` — RED (module not found); GREEN after
+  implementation = 4 passed (14 stages check, OPEN_STAGES exclusions, weightedPipelineValue
+  rounding, funnel fixture with 5 leads [IDENTIFIED, CONTACTED, QUALIFIED, APPOINTED, LOST]
+  → 4 active, correct stage progression counts, correct conversion % between stages).
+- Fixture analysis: With [IDENTIFIED, CONTACTED, QUALIFIED, APPOINTED, LOST] and LOST
+  filtered: active leads = 4. Funnel counts: identified=4, contacted=3, qualified=2,
+  meeting=1, commercial=1, negotiation=1, appointed=1, firstOrder=0, activated=0,
+  repeatOrder=0. Conversions: identified=null, contacted≈75%, qualified≈66.67%,
+  meeting=50%, commercial=100%, negotiation=100%, appointed=100%, firstOrder=0%,
+  activated=0%, repeatOrder=0% (prev-count-based).
+- Tests: `npm test -- pipeline` -> 1 file / 4 passed. `npm test` -> 6 files / 15 passed.
+  `npx tsc --noEmit` clean. `npm run lint` clean.
+- Deviations: none.
+- Shortcuts: none.
