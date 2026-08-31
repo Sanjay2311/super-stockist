@@ -235,3 +235,51 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   params typed vs. brief's untyped (tsc cleanliness). No `@testing-library` render
   test (ponytail-preferred: pure helper suffices).
 - Shortcuts: e2e nav spec skipped (see PONYTAIL-DEBT).
+
+## 2026-08-31 — Task 10: Territory schema + hierarchy service + territories screen
+
+- Schema: `src/server/db/schema/territory.ts` — `territories` { id, orgId, name,
+  type (text), parentId (plain uuid, no self-FK), estimatedMarketPotential (bigint
+  paise, default 0), estimatedDistributorCount (int, default 0), active (bool,
+  default true), deletedAt (nullable), createdAt/updatedAt } and
+  `territory_assignments` { id, orgId, territoryId → territories.id, employeeId,
+  fromDate, toDate (nullable), createdAt }. Added to `schema/index.ts` barrel.
+- Audit scaffolding (Task 12 will expand): `src/server/db/schema/audit.ts` —
+  `audit_log` { id, orgId, userId (text — see deviation), entityType, entityId
+  (text), action, oldValues/newValues (jsonb), createdAt }; `src/server/services/
+  audit.ts` — `writeAudit(user, entityType, entityId, action, oldValues,
+  newValues)` inserts one row. Barrel updated.
+- `src/lib/schemas.ts` (new): `TERRITORY_TYPES` (`['ZONE','AREA','NEIGHBORHOOD',
+  'PINCODE'] as const`), `territorySchema` (zod v4), `type TerritoryInput`.
+- Service `src/server/services/territory.ts`: `TerritoryRow`/`TerritoryNode` types,
+  `listTerritories` (active, not deleted, name asc), `territoryTree` (nest by
+  parentId, in-memory), `descendantIds`/`ancestorIds` (walk parentId in memory),
+  `createTerritory` (assertCan 'territory.edit' → zod parse → insert → writeAudit),
+  `updateTerritory` (assertCan → load before → partial parse → update → writeAudit),
+  `overlapsExclusive` STUB → `false` (ponytail comment + PONYTAIL-DEBT row).
+- Screen: `src/app/(app)/territories/page.tsx` replaces the placeholder — server
+  component, `Promise.all([territoryTree, listTerritories])`, recursive `<Tree>`
+  render, add-form gated by `can(user,'territory.edit')`. `actions.ts` —
+  `addTerritory` server action (`requireUser` → `createTerritory` →
+  `revalidatePath`).
+- Migration: `drizzle/0002_fat_vermin.sql` — `db:generate` + `db:migrate` clean
+  (regenerated once after the userId text change; old 0002 artifacts + local tables
+  dropped and rebuilt so the committed migration is the only one).
+- TDD: `tests/services/territory.test.ts` — RED (`Cannot find package
+  '@/server/services/territory'`) → after impl, one more RED (`invalid input syntax
+  for type uuid: "o"` from `audit_log.user_id` uuid vs the test's `id:'o'` fixture)
+  → fixed by making `user_id` a text column → GREEN = 2 passed (ZONE→AREA hierarchy
+  + list alpha order + nested tree + descendantIds; SALES `createTerritory` throws
+  'forbidden').
+- Tests: `npm test -- territory` → 1 file / 2 passed. Full `npm test` → 10 files /
+  26 passed, run twice, stable. `npx tsc --noEmit` clean. `npm run lint` clean
+  (eslint-disable on the `overlapsExclusive` stub's intentionally-unused params).
+  `npm run dev` boots; `/` and `/territories` compile with no errors and
+  307-redirect to `/login` (unauthenticated, expected — no Supabase locally).
+- Deviations: (1) `audit_log.user_id` is `text`, not `uuid` as the brief's Step 5
+  snippet had it — `AppUser.id` is a Supabase auth uid (uuid in prod) but test
+  fixtures and future system actors are not uuids; `entity_id` is already text, so
+  text `user_id` is consistent and keeps `writeAudit` boundary-safe. (2) Empty-tree
+  fallback text added to the screen (`No territories yet.`) so the fresh page is not
+  a blank box.
+- Shortcuts: `overlapsExclusive` stub (PONYTAIL-DEBT, cleared in Milestone 2).

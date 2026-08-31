@@ -15,6 +15,13 @@
       "when": 1788193246023,
       "tag": "0001_third_hawkeye",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788194483498,
+      "tag": "0002_fat_vermin",
+      "breakpoints": true
     }
   ]
 }
