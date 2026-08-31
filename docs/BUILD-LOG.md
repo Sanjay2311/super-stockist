@@ -76,3 +76,53 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   CLI guard is in scope for this task and was otherwise dead). No demo data —
   that is Task 19.
 - Shortcuts: single VITEST-switched DB client (see PONYTAIL-DEBT).
+
+## 2026-08-31 — Task 4: Supabase auth wiring + session helpers + login page
+- `src/server/auth/supabase.ts`: `createServerClient()` — `@supabase/ssr`
+  `createServerClient` bound to Next 15 async `cookies()` (getAll/setAll,
+  setAll try/catch for Server Component render).
+- `src/server/auth/session.ts`: `export type Role = 'OWNER' | 'SALES'`,
+  `AppUser` (role uses `Role` — Task 5 depends on this), `getSession()` reads
+  `supabase.auth.getUser()`, joins `users` by id, returns `null` when no auth
+  user / no row / `status !== 'active'`, else maps to `AppUser`. `requireUser()`
+  = `getSession()` or `redirect('/login')` (thin; `ponytail:` note — redirect
+  branch covered by the skipped e2e spec).
+- `src/middleware.ts`: refreshes the auth cookie (`supabase.auth.getUser()`),
+  matcher excludes `_next/static|_next/image|favicon.ico|api/health`. Route gate
+  itself is per-layout `requireUser()`, not middleware (see PONYTAIL-DEBT).
+- Routes/layouts: `src/app/(auth)/layout.tsx` (centered card),
+  `src/app/(auth)/login/page.tsx` (`'use client'` + `useActionState`),
+  `src/app/(auth)/login/actions.ts` (`signIn`/`signOut` Server Actions),
+  `src/app/(app)/layout.tsx` (`await requireUser()` gate).
+- `scripts/create-user.ts`: `tsx scripts/create-user.ts <email> <password>
+  <name> <OWNER|SALES>` — service-role `auth.admin.createUser` + `users` insert
+  under the seeded org. Written per brief; NOT runnable in this env (no Supabase
+  admin API) — run with `DOTENV_CONFIG_PATH=.env.local` once `supabase start`
+  is up.
+- Tests:
+  - `tests/services/session.test.ts` (NEW, the real gate) — `vi.mock`s
+    `@/server/auth/supabase` so only `getSession()`'s DB-join + status-gate +
+    mapping logic runs, against native Postgres (`127.0.0.1:54322`) via
+    `seedBase()` + a real `users` insert. 4 cases: active OWNER → mapped
+    `AppUser`; no auth user → `null`; no `users` row → `null`; `status`
+    `disabled` → `null`. RED verified by deleting the status guard (the
+    "not active" case fails); GREEN = 4 passed.
+  - `tests/e2e/auth.spec.ts` written verbatim from the brief but wrapped in
+    `test.describe.skip` (+ `ponytail:` comment) — no local Supabase auth
+    server, so it cannot run here.
+  - `npm test` → 4 files / 8 passed (money 2 + db-connection 1 +
+    identity-schema 1 + session 4). `npm run lint` clean. `npx tsc --noEmit`
+    clean. `npm run dev` boots: `/login` → 200 with the form, `/` → 307
+    redirect to `/login` (gate works), no server errors.
+- Deviations: (1) e2e specs skipped — no Docker/Supabase CLI in this env
+  (PONYTAIL-DEBT row + report). (2) `.env.local` `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  / `SUPABASE_SERVICE_ROLE_KEY` were empty, which makes `@supabase/supabase-js`
+  throw at construction and 500s every route incl. the static `/login`; set
+  both to `local-dev-placeholder-no-supabase-running` (gitignored file only,
+  `.env.example` untouched) so the login form renders as the task asks to
+  verify. (3) `scripts/create-user.ts` gets `import 'dotenv/config'` (like
+  `seed.ts` / `migrate.ts`) + a usage comment; run it with
+  `DOTENV_CONFIG_PATH=.env.local`. (4) `requireUser()` `ponytail:` note instead
+  of a forced-mock redirect test.
+- Shortcuts: e2e skipped; per-layout gate not middleware; `requireUser()`
+  redirect branch untested (all in PONYTAIL-DEBT).
