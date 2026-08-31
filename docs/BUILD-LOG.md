@@ -324,3 +324,46 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   are `NOT NULL` with no DB default (callers set them; `activitySchema` defaults
   `occurredAt` in app code).
 - Shortcuts: hand-edited migration for the `activities` CHECK (PONYTAIL-DEBT).
+
+## 2026-08-31 — Task 12: Lead service (create/update/rescore/list) + Leads screen
+- `src/server/services/lead.ts` (new): `LeadRow` (`$inferSelect`); local `LeadInput =
+  z.input<typeof leadSchema>` so callers pass raw form values (the `@/lib/schemas`
+  `LeadInput` alias is `z.infer`/output, which forces every `.default()` field on
+  callers — not what an insert helper wants). `clean<T>()` nulls empty-string
+  optionals. `createLead` — `assertCan('lead.create')`, `leadSchema.parse`,
+  SALES caller with blank assignee defaults to `user.employeeId` (OWNER → null),
+  audited `create`. `updateLead` — `assertCan('lead.update')`, org-scoped load-or-404,
+  `leadSchema.partial().parse`, `updatedAt` bumped, audited `update` before/after.
+  `rescoreLead` — `assertCan('lead.update')`, `scoreInputsSchema.parse`,
+  `getConfig(orgId,'scoreWeights')` → `assertWeightsValid` → `scoreDistributor`,
+  persists `scoreInputs`+`score`+`grade`, audited `rescore` (score/grade before→after).
+  `listLeads(orgId, opts)` — `deletedAt IS NULL`, optional `stage`/`assignedEmployeeId`,
+  `q` ILIKE over businessName/contactPerson/phone, `updatedAt desc`, default limit 50.
+  `getLead(orgId,id)` → row | null.
+- `src/components/grade-badge.tsx`, `src/components/stage-badge.tsx` (new): per brief,
+  hand-rolled Tailwind spans (grade colour map; stage Title-Cased).
+- `src/app/(app)/leads/actions.ts` (new): `'use server'` `createLeadAction(formData)` —
+  `requireUser`, `createLead`, `redirect('/leads/{id}')`.
+- `src/app/(app)/leads/page.tsx` (replace placeholder): server component — search
+  form (`GET /leads?q=`), `<details>` create form → `createLeadAction`, results table
+  (business/stage/grade/potential/next-follow-up) with empty state.
+- `src/app/(app)/leads/[id]/page.tsx` (new, my call per brief note 6): minimal
+  placeholder — `getLead` + `notFound()`, renders `businessName` so the create
+  redirect resolves. Task 13 replaces it with the real detail screen.
+- TDD: `tests/services/lead.test.ts` — RED (`Cannot find package
+  '@/server/services/lead'`) → GREEN 5 passed (SALES create defaults assignee +
+  stage IDENTIFIED; bad phone rejected; rescore all-1s w/ default weights → score
+  100 / grade A; list `q:'beta'` → ['Beta Mart'] and `stage:'CONTACTED'` → 0;
+  `can(sales,'lead.delete') === false`).
+- Tests: `npm test -- services/lead` → 1 file / 5 passed. Full `npm test` → 12 files /
+  33 passed, run twice, stable. `npx tsc --noEmit` clean. `npm run lint` clean.
+  `npm run dev` boots; `/leads` compiles (410ms), 307 → `/login` (unauthenticated,
+  expected — no local Supabase).
+- Deviations: (1) the brief's Step 1 test used 1-char `contactPerson` values
+  (`'A'`/`'B'`/`'Y'`) that fail Task 11's shipped `leadSchema` (`.min(2)`); changed to
+  `'Anil'`/`'Amit'`/`'Bala'`/`'Yash'` — no schema change. (2) dropped the brief's
+  `as any` on the bad-phone case — the looser `z.input` `LeadInput` accepts the
+  3-field object and the rejection still fires in `leadSchema.parse` on the phone
+  regex. (3) exported a local `LeadInput` from `lead.ts` instead of importing the
+  output-typed alias from `@/lib/schemas` (no schema file touched).
+- Shortcuts: none with a ceiling — no new PONYTAIL-DEBT.
