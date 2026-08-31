@@ -1,0 +1,7 @@
+.worktrees/
+node_modules/
+.next/
+.open-next/
+.env.local
+.env
+.dev.vars
