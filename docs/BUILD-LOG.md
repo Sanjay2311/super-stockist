@@ -196,3 +196,42 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   `as Record<LeadStage, number>` cast on the object literal; that laundered the type before
   `satisfies` saw it, making the completeness check a no-op — removed in the review fix.
 - Shortcuts: none.
+
+## 2026-08-31 — Task 7: App shell — role-aware sidebar + mobile bottom nav
+
+- `src/components/app-nav.tsx` (`'use client'`): `NAV_ITEMS` (Dashboard, Today,
+  Pipeline, Leads, Territories, Daily Report, Reports [ownerOnly], Settings
+  [ownerOnly]); exported pure `visibleNavItems(role)` =
+  `NAV_ITEMS.filter(i => !i.ownerOnly || role === 'OWNER')`. `AppNav` renders a
+  desktop `<aside>` (`hidden md:flex`, all visible items, `usePathname` active
+  styling + `aria-current="page"`) and a mobile `<nav>` (`fixed bottom-0 md:hidden`,
+  first 5 items).
+- `src/app/(app)/layout.tsx` replaced: `const user = await requireUser()`, mounts
+  `<AppNav user={user} />`, header shows `{user.name} · {user.role}` + a
+  `<form action={signOut}>` Sign out button, `{children}` wrapper carries
+  `pb-16 md:pb-0` for the mobile bar.
+- 7 placeholder pages added under `src/app/(app)/`: `leads`, `pipeline`,
+  `territories`, `today`, `daily-report`, `reports/daily`, `settings` — each a
+  one-line `<main><h1>` per brief. `page.tsx` (dashboard) left as-is.
+- e2e: `tests/e2e/nav.spec.ts` written per brief but `test.describe.skip('nav', ...)`
+  — needs `supabase start` + seeded owner/sales users (no Docker/Supabase here).
+  `login()` helper params typed (`Page`, `string`) so `tsc` stays clean. Tracked
+  in PONYTAIL-DEBT.
+- Real gate: `tests/domain/nav.test.ts` (Vitest, pure, no DOM) — RED (`Cannot find
+  package '@/components/app-nav'`) → GREEN = 3 passed (OWNER sees Settings+Reports;
+  SALES sees Pipeline/Leads/Today, not Settings/Reports; SALES ⊊ OWNER).
+- Tests: `npm test -- nav` → 1 file / 3 passed. `npm test` full → 9 files / 24 tests;
+  green on a clean run, but `tests/services/*` (DB) intermittently fail under
+  vitest file-parallelism against the single shared local Postgres (pre-existing —
+  present on the Task 6 base commit; "no per-test DB isolation" row in
+  PONYTAIL-DEBT). `nav.test.ts` + all non-DB suites pass every run. Isolated
+  `npm test -- identity-schema` etc. pass.
+- `npx tsc --noEmit` clean. `npm run lint` clean. `npm run dev` boots; `/` compiles
+  (860 modules, no errors) and 307-redirects to `/login` (unauthenticated, as
+  expected — cannot log in without Supabase); `/login` 200.
+- Deviations: brief's inline `NAV_ITEMS.filter(...)` moved into the exported
+  `visibleNavItems()` helper (per task instructions, for the Vitest gate). Added
+  `aria-current="page"` on active links (accessibility, not in brief). e2e helper
+  params typed vs. brief's untyped (tsc cleanliness). No `@testing-library` render
+  test (ponytail-preferred: pure helper suffices).
+- Shortcuts: e2e nav spec skipped (see PONYTAIL-DEBT).
