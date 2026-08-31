@@ -10,5 +10,9 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     exclude: ['tests/e2e/**'],
+    // Service tests share ONE local Postgres and each TRUNCATEs every table in
+    // beforeEach; running test files in parallel makes them stomp each other.
+    // Serialize files. The suite is small; the cost is a second or two.
+    fileParallelism: false,
   },
 });
