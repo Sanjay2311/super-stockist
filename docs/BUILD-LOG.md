@@ -163,3 +163,36 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   `npx tsc --noEmit` clean. `npm run lint` clean (eslint-disable-next-line on `as any` test casts).
 - Deviations: none.
 - Shortcuts: none.
+
+## 2026-08-31 — Task 6: app_config schema + typed config service
+
+- `src/server/db/schema/config.ts`: `appConfig` table (`app_config`) — `orgId` uuid,
+  `key` text, `value` jsonb, `updatedAt` timestamptz default now(); composite PK
+  `(orgId, key)`. No FK on `orgId` (per brief — keeps config table free of table-ordering
+  concerns). Added `export * from './config';` to `schema/index.ts` barrel.
+- `src/server/services/config.ts`: `CONFIG_DEFAULTS` (M1 keys: `scoreWeights` 9 weights
+  summing to 100, `stageProbability` — all 14 LeadStage values IDENTIFIED..ON_HOLD,
+  `hotLeadProbabilityThreshold: 60`, `staleQuotationDays: 5`, `reorderCadenceDays: 21`),
+  `ConfigShape`/`ConfigKey` types, `getConfig<K>(orgId, key)` (stored `value` or default,
+  nullish-coalesced so a stored `0` wins), `setConfig<K>(orgId, key, value)` (insert +
+  `onConflictDoUpdate` on the composite PK, bumps `updatedAt`).
+- `import type { LeadStage } from '@/domain/pipeline'` — pipeline.ts already has the full
+  14-value union (Task 8 ran first), no stub needed.
+- Migration: `npm run db:generate` → `drizzle/0001_third_hawkeye.sql` (CREATE TABLE
+  app_config + composite PK constraint); `npm run db:migrate` → applied clean.
+- TDD: `tests/services/config.test.ts` — RED (`Cannot find package '@/server/services/config'`);
+  GREEN after implementation = 2 passed (default-when-unset for `scoreWeights` +
+  `hotLeadProbabilityThreshold`; persist/read-back an override).
+- Tests: `npm test -- config` → 1 file / 2 passed. `npm test` → 8 files / 21 passed.
+  `npx tsc --noEmit` clean. `npm run lint` clean.
+- Deviation: brief's verbatim `CONFIG_DEFAULTS ... } as const` does not typecheck against
+  the brief's verbatim test — the override `{ ...scoreWeights, reputation: 10, willingness: 0 }`
+  is not assignable when `as const` pins `reputation` to literal `5`. Replaced `as const`
+  with a `satisfies { ... stageProbability: Record<LeadStage, number> ... }` clause: runtime
+  object is identical, weight/threshold values are `number`-typed (override-friendly) instead
+  of literal-typed. The `satisfies` clause is now the sole check that `stageProbability` has
+  all 14 LeadStage keys — drop any key → `tsc` error `TS2741: Property '<X>' is missing`
+  (verified both directions). An earlier draft also had an inner
+  `as Record<LeadStage, number>` cast on the object literal; that laundered the type before
+  `satisfies` saw it, making the completeness check a no-op — removed in the review fix.
+- Shortcuts: none.
