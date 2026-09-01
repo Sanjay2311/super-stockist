@@ -797,3 +797,39 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   `saveThresholds` gate pattern.
 - Shortcuts: demo `scoreInputs` use 4 uniform tiers (every key equal) so each
   tier yields one fixed score — fine for demo data, no ledger entry.
+
+## 2026-09-01 — Task 21: Minimal M1 dashboard
+- Replaced the `src/app/(app)/page.tsx` scaffold placeholder with a real
+  server-rendered dashboard (4 sections): Today counts (follow-ups overdue /
+  today / next-7, tasks overdue / today, hot-no-next-action; link to `/today`),
+  Pipeline funnel (row list — label, bar, count, `% from prev` skipped on row 1),
+  Weighted pipeline value (`formatINR`), Leads needing attention (`hotNoAction`
+  top 5, each linking `/leads/{id}`). SALES scoped to `employeeId`; open leads
+  from `listLeads(orgId,{limit:500})` filtered to `OPEN_STAGES`. No `db` import —
+  all data via services (`listLeads`, `getTodayView`). ~95 lines.
+- New pure helper `src/domain/dashboard.ts` — `dashboardSummary(openLeads)` →
+  `{ funnel: funnelConversion(...), weightedPipeline: Σ weightedPipelineValue }`.
+- Files: `src/app/(app)/page.tsx` (rewrite), `src/domain/dashboard.ts` (new),
+  `tests/domain/dashboard.test.ts` (new), `tests/e2e/dashboard.spec.ts` (new,
+  `describe.skip`), `docs/BUILD-LOG.md`, `docs/PONYTAIL-DEBT.md`.
+- TDD: `tests/domain/dashboard.test.ts` — RED (`Cannot find package
+  '@/domain/dashboard'`) → GREEN (2 cases): empty list → all-zero funnel +
+  weightedPipeline 0; small fixture → `funnel` deep-equals `funnelConversion` and
+  `weightedPipeline` equals the hand-summed `weightedPipelineValue` (3,000,000).
+- Tests: `npm test -- domain/dashboard` → 1 file / 2 passed. Full `npm test` →
+  22 files / 59 passed, run twice, stable. `npx tsc --noEmit` clean.
+  `npm run lint` clean.
+- Dev check (`next dev`, DB devbrowse, dev-login `dev@local` = OWNER):
+  `npm run db:seed` (demo already present) + `npm run dev:fixtures`. `GET /` →
+  200, all 4 sections render with real numbers: funnel Identified 24 →
+  Contacted 20 → Qualified 17 → … → First Order 1 (non-empty, `% from prev`
+  shown from row 2), Weighted pipeline value ₹42,01,500.00, Today stat tiles
+  populated (Follow-ups overdue, Hot · no next action, …), attention list
+  present.
+- e2e: `tests/e2e/dashboard.spec.ts` written per brief but `test.describe.skip`
+  (no local Supabase Auth) with a `// ponytail:` note; PONYTAIL-DEBT e2e-skip row
+  extended to list it.
+- Deviations: `listLeads` + `getTodayView` loaded via `Promise.all` (parallel,
+  not sequential). No BUILD shortcut cutting a real corner — the thin-page
+  ceiling (full Command Center is M3) is the pre-existing PONYTAIL-DEBT note,
+  restated in a `// ponytail:` comment at the top of `page.tsx`.
