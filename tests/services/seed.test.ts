@@ -18,6 +18,8 @@ describe('demo seed', () => {
     expect(leads.length).toBeGreaterThanOrEqual(18);
     expect(leads.every((l) => l.isDemo)).toBe(true);
     expect(leads.every((l) => l.orgId === orgId)).toBe(true);
+    // every demo phone passes the app's own leadSchema.phone regex (I4)
+    expect(leads.every((l) => /^[6-9]\d{9}$/.test(l.phone))).toBe(true);
 
     const stages = new Set(leads.map((l) => l.stage));
     expect(stages.size).toBeGreaterThanOrEqual(6);

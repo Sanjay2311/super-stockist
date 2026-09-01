@@ -43,6 +43,13 @@
       "when": 1788236757839,
       "tag": "0005_classy_miracleman",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788250411952,
+      "tag": "0006_pink_changeling",
+      "breakpoints": true
     }
   ]
 }

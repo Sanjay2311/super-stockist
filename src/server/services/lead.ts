@@ -5,7 +5,7 @@ import { territories } from '@/server/db/schema/territory';
 import { employees } from '@/server/db/schema/identity';
 import { leadSchema, scoreInputsSchema } from '@/lib/schemas';
 import { patchOnly } from '@/lib/patch';
-import { assertCan } from '@/server/auth/permissions';
+import { assertCan, stripFinancial } from '@/server/auth/permissions';
 import { getConfig } from './config';
 import { scoreDistributor, assertWeightsValid, type ScoreWeights } from '@/domain/scoring';
 import { writeAudit } from './audit';
@@ -17,6 +17,19 @@ import type { z } from 'zod';
 export type LeadRow = typeof distributorLeads.$inferSelect;
 // Callers supply raw form values; defaults/coercion are applied by `leadSchema.parse`.
 export type LeadInput = z.input<typeof leadSchema>;
+
+// Financial columns SALES must never see on a lead read. Empty in M1 (no cost
+// columns yet); M2 adds ssBillingPrice/floorPrice etc. — add the names here and
+// every wired read path (redactLead/redactLeads below) redacts them for SALES.
+export const LEAD_FINANCIAL_FIELDS: (keyof LeadRow)[] = [];
+
+export function redactLead(user: AppUser, row: LeadRow): LeadRow {
+  return stripFinancial(user, row, LEAD_FINANCIAL_FIELDS);
+}
+
+export function redactLeads(user: AppUser, rows: LeadRow[]): LeadRow[] {
+  return rows.map((r) => redactLead(user, r));
+}
 
 function clean<T extends Record<string, unknown>>(input: T): T {
   // drop empty-string optionals so they store as null
@@ -124,6 +137,9 @@ export type BoardLead = {
 };
 
 export async function boardLeads(orgId: string): Promise<BoardLead[]> {
+  // ponytail: this projection is a fixed subset with no cost columns, so it
+  // needs no redaction pass. If a financial field is ever added here it must
+  // also go through LEAD_FINANCIAL_FIELDS / redactLead for the SALES role.
   const rows = await db.select({
     id: distributorLeads.id,
     businessName: distributorLeads.businessName,
@@ -149,6 +165,10 @@ export async function boardLeads(orgId: string): Promise<BoardLead[]> {
 
 export async function getLead(orgId: string, id: string): Promise<LeadRow | null> {
   const [row] = await db.select().from(distributorLeads)
-    .where(and(eq(distributorLeads.id, id), eq(distributorLeads.orgId, orgId)));
+    .where(and(
+      eq(distributorLeads.id, id),
+      eq(distributorLeads.orgId, orgId),
+      isNull(distributorLeads.deletedAt),
+    ));
   return row ?? null;
 }

@@ -867,3 +867,44 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   action's exact `rupees(Number('500000'))` transform stores `50000000` and
   `formatINR` renders `₹5,00,000.00` (buggy path rendered `₹5,000.00`).
 - PONYTAIL-DEBT: vitest-parallelism race row marked CLEARED (shipped `cbaa27b`).
+
+## 2026-09-01 — M1.5 cleanup — final-review deferrals I4–I8
+- Five localised fixes deferred from the M1 whole-branch review; no scope beyond them.
+- I4 `src/server/db/seed.ts` — demo lead `phone` now
+  `` `9845${String(10000 + i).padStart(6, '0')}` `` (→ `9845010000…`, 10 digits,
+  passes `leadSchema.phone` `/^[6-9]\d{9}$/`). Was `` `+91 98${45010000 + i}` ``
+  which failed the app's own validator, making every demo lead read-only in the
+  UI. `tests/services/seed.test.ts` — added assertion every seeded phone matches
+  the regex. Dev check (DB devbrowse, purge + reseed): a demo lead saved through
+  the exact `saveLeadFields` shape (phone included) — OK; the old value threw in
+  `leadSchema.partial().parse`.
+- I5 `src/app/(app)/page.tsx` — `listLeads(user.orgId, { ...scope, limit: 500 })`
+  so a SALES rep's dashboard funnel + weighted value are self-scoped, matching
+  the already-scoped `getTodayView`. One-liner; covered by `listLeads`'s existing
+  `assignedEmployeeId` filter tests, no new test.
+- I6 wired `stripFinancial` at the lead read boundary. `src/server/services/lead.ts`
+  exports `LEAD_FINANCIAL_FIELDS: (keyof LeadRow)[] = []` (empty in M1) +
+  `redactLead(user,row)` / `redactLeads(user,rows)`. Applied in
+  `src/app/(app)/leads/page.tsx` (`redactLeads(user, await listLeads(...))`) and
+  `src/app/(app)/leads/[id]/page.tsx` (`redactLead(user, found)` after the null
+  check). `boardLeads` left as-is (projected subset, no cost cols) with a
+  `// ponytail:` note. Test in `tests/services/lead.test.ts`: `redactLead` is a
+  no-op today; direct `stripFinancial(sales,{a,secret},['secret'])` → `{a}`,
+  OWNER keeps it. No-op today, so M2 only adds names to the array.
+- I7 `src/server/services/lead.ts` `getLead()` — added
+  `isNull(distributorLeads.deletedAt)` to the `and(...)`; a soft-deleted lead was
+  still reachable at `/leads/[id]`. Test in `lead.test.ts`: create, set
+  `deletedAt` via `testDb`, `getLead` → `null`.
+- I8 new migration `drizzle/0006_pink_changeling.sql` — indexes added as Drizzle
+  `index()` defs in `src/server/db/schema/{crm,audit}.ts` (3rd `pgTable` arg),
+  `db:generate` produced exactly 7 `CREATE INDEX` (no other diffs):
+  `leads_org_stage_idx`, `leads_org_assignee_idx`, `leads_org_deleted_idx`,
+  `activities_lead_idx`, `activities_org_occurred_idx`, `tasks_org_status_due_idx`,
+  `audit_entity_idx`. `db:migrate` clean against both `postgres` and `devbrowse`;
+  all 7 present in `pg_indexes` on both.
+- RED→GREEN: broke I4 (phone) + I7 (`getLead` filter) → the two new assertions
+  failed; restored → pass.
+- Tests: `npm test` → 23 files / 69 passed, run twice, stable (was 23/67).
+  `npx tsc --noEmit` clean. `npm run lint` clean. `npm run build` succeeds.
+- PONYTAIL-DEBT: no I4–I8 debt row existed; added an M1-empty
+  `LEAD_FINANCIAL_FIELDS` → "populate in M2" pointer row.
