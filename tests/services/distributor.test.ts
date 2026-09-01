@@ -5,7 +5,9 @@ import { seedBase } from '@/server/db/seed';
 import { territories } from '@/server/db/schema/territory';
 import { distributors } from '@/server/db/schema/distributor';
 import { auditLog } from '@/server/db/schema/audit';
-import { listDistributors, getDistributor, updateDistributor } from '@/server/services/distributor';
+import { listDistributors, getDistributor, updateDistributor, convertLead } from '@/server/services/distributor';
+import { getLead } from '@/server/services/lead';
+import { distributorLeads } from '@/server/db/schema/crm';
 import type { AppUser } from '@/server/auth/session';
 
 const owner = (orgId: string): AppUser => ({ id: 'u-owner', email: 'o', name: 'O', role: 'OWNER', employeeId: null, orgId });
@@ -69,5 +71,60 @@ describe('distributor service', () => {
     expect(ok.exclusivityNote).toMatch(/HoReCa/);
     const rows = await testDb.select().from(auditLog).where(eq(auditLog.action, 'exclusivity_override'));
     expect(rows.length).toBe(1);
+  });
+});
+
+describe('convertLead', () => {
+  async function seedLead(orgId: string, over: Partial<typeof distributorLeads.$inferInsert> = {}) {
+    const [l] = await testDb.insert(distributorLeads).values({
+      orgId, businessName: 'Prime Retail', contactPerson: 'J. Acharya', phone: '9845010016',
+      stage: 'APPROVED', grade: 'A', score: 82, ...over,
+    }).returning();
+    return l;
+  }
+
+  it('creates an APPROVED distributor, links the lead, and bumps the stage to APPOINTED', async () => {
+    const { orgId } = await seedBase();
+    const lead = await seedLead(orgId);
+    const d = await convertLead(owner(orgId), lead.id, { creditLimit: 100000000, creditDays: 21 });
+    expect(d.status).toBe('APPROVED');
+    expect(d.grade).toBe('A');
+    expect(d.sourceLeadId).toBe(lead.id);
+    expect(d.creditLimit).toBe(100000000);
+    const after = await getLead(orgId, lead.id);
+    expect(after?.convertedDistributorId).toBe(d.id);
+    expect(after?.stage).toBe('APPOINTED');
+  });
+
+  it('refuses a lead that is not APPROVED/APPOINTED, and refuses a second conversion', async () => {
+    const { orgId } = await seedBase();
+    const early = await seedLead(orgId, { stage: 'NEGOTIATION' });
+    await expect(convertLead(owner(orgId), early.id, {})).rejects.toThrow('LEAD_NOT_CONVERTIBLE');
+    const lead = await seedLead(orgId, { businessName: 'Twice' });
+    await convertLead(owner(orgId), lead.id, {});
+    await expect(convertLead(owner(orgId), lead.id, {})).rejects.toThrow('LEAD_NOT_CONVERTIBLE');
+  });
+
+  it('blocks an exclusive clash; OWNER may override with a reason, SALES may not', async () => {
+    const { orgId } = await seedBase();
+    const [zone] = await testDb.insert(territories).values({ orgId, name: 'East', type: 'ZONE', parentId: null }).returning();
+    const [area] = await testDb.insert(territories).values({ orgId, name: 'Whitefield', type: 'AREA', parentId: zone.id }).returning();
+    await seedDist(orgId, { businessName: 'Incumbent', territoryId: area.id, exclusive: true, status: 'ACTIVE' });
+
+    const l1 = await seedLead(orgId, { businessName: 'Blocked' });
+    await expect(
+      convertLead(owner(orgId), l1.id, { territoryId: area.id, exclusive: true }),
+    ).rejects.toThrow('EXCLUSIVITY_CONFLICT');
+
+    const l2 = await seedLead(orgId, { businessName: 'SalesTry' });
+    await expect(
+      convertLead(sales(orgId), l2.id, { territoryId: area.id, exclusive: true, overrideReason: 'x' }),
+    ).rejects.toThrow('EXCLUSIVITY_OVERRIDE_REQUIRES_OWNER');
+
+    const l3 = await seedLead(orgId, { businessName: 'OwnerOverride' });
+    const d = await convertLead(owner(orgId), l3.id, {
+      territoryId: area.id, exclusive: true, overrideReason: 'Channel split agreed with F&F',
+    });
+    expect(d.exclusivityNote).toMatch(/Channel split/);
   });
 });

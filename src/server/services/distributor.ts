@@ -1,11 +1,21 @@
 import { and, asc, eq, ilike, isNull, or } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { distributors } from '@/server/db/schema/distributor';
-import { distributorSchema, type DistributorInput } from '@/lib/schemas';
+import { distributorLeads } from '@/server/db/schema/crm';
+import {
+  distributorSchema,
+  type DistributorInput,
+  convertLeadSchema,
+  type ConvertLeadInput,
+  DISTRIBUTOR_GRADES,
+} from '@/lib/schemas';
 import { patchOnly } from '@/lib/patch';
 import { assertCan, stripFinancial } from '@/server/auth/permissions';
 import { overlapsExclusive } from './territory';
 import { writeAudit } from './audit';
+import { getConfig } from './config';
+import { getLead } from './lead';
+import { addActivity } from './activity';
 import type { AppUser } from '@/server/auth/session';
 
 export type DistributorRow = typeof distributors.$inferSelect;
@@ -83,5 +93,73 @@ export async function updateDistributor(
   }).where(eq(distributors.id, id)).returning();
 
   await writeAudit(user, 'distributor', id, exclusivityNote ? 'exclusivity_override' : 'update', before, row);
+  return row;
+}
+
+const CONVERTIBLE_STAGES = ['APPROVED', 'APPOINTED'];
+const ymd = (d: Date) => d.toISOString().slice(0, 10);
+
+export async function convertLead(
+  user: AppUser,
+  leadId: string,
+  input: ConvertLeadInput,
+): Promise<DistributorRow> {
+  assertCan(user, 'distributor.create');
+  const form = convertLeadSchema.parse(input);
+
+  const lead = await getLead(user.orgId, leadId);
+  if (!lead) throw new Error('not found');
+  if (!CONVERTIBLE_STAGES.includes(lead.stage) || lead.convertedDistributorId) {
+    throw new Error('LEAD_NOT_CONVERTIBLE');
+  }
+
+  let exclusivityNote: string | null = null;
+  if (form.exclusive && form.territoryId) {
+    const clash = await overlapsExclusive(user.orgId, form.territoryId);
+    if (clash) {
+      if (!form.overrideReason) throw new Error('EXCLUSIVITY_CONFLICT');
+      if (user.role !== 'OWNER') throw new Error('EXCLUSIVITY_OVERRIDE_REQUIRES_OWNER');
+      exclusivityNote = form.overrideReason;
+    }
+  }
+
+  const grade = DISTRIBUTOR_GRADES.includes(lead.grade as (typeof DISTRIBUTOR_GRADES)[number])
+    ? lead.grade : null;
+
+  const [row] = await db.insert(distributors).values({
+    orgId: user.orgId,
+    businessName: lead.businessName,
+    contactPerson: lead.contactPerson,
+    phone: lead.phone,
+    email: lead.email,
+    address: lead.address,
+    territoryId: form.territoryId ?? null,
+    exclusive: !!form.exclusive,
+    exclusivityNote,
+    assignedEmployeeId: form.assignedEmployeeId ?? lead.assignedEmployeeId ?? null,
+    appointmentDate: ymd(new Date()),
+    status: 'APPROVED',
+    grade,
+    creditLimit: form.creditLimit ?? 0,
+    creditDays: form.creditDays ?? 0,
+    paymentTerms: form.paymentTerms || null,
+    expectedMonthlyPurchase: form.expectedMonthlyPurchase ?? 0,
+    sourceLeadId: leadId,
+  }).returning();
+
+  const nextStage = lead.stage === 'APPROVED' ? 'APPOINTED' : lead.stage;
+  const probMap = await getConfig(user.orgId, 'stageProbability');
+  const [leadAfter] = await db.update(distributorLeads).set({
+    convertedDistributorId: row.id,
+    stage: nextStage,
+    probability: probMap[nextStage as keyof typeof probMap],
+    updatedAt: new Date(),
+  }).where(eq(distributorLeads.id, leadId)).returning();
+
+  await addActivity(user, { leadId, type: 'OTHER', outcome: 'Converted to distributor' });
+  await writeAudit(user, 'distributor', row.id, exclusivityNote ? 'exclusivity_override' : 'convert', { leadId }, row);
+  await writeAudit(user, 'lead', leadId, 'convert',
+    { stage: lead.stage, convertedDistributorId: null },
+    { stage: leadAfter.stage, convertedDistributorId: row.id });
   return row;
 }

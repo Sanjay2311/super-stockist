@@ -126,6 +126,20 @@ export const distributorSchema = z.object({
 });
 export type DistributorInput = z.infer<typeof distributorSchema>;
 
+// Lead → distributor conversion form (spec §4.4). `.default()` on several fields
+// ⇒ the caller-facing type is `z.input`, not `z.infer`.
+export const convertLeadSchema = z.object({
+  territoryId: z.uuid().nullable().optional(),
+  exclusive: z.boolean().optional(),
+  assignedEmployeeId: z.uuid().nullable().optional(),
+  creditLimit: z.coerce.number().int().min(0).default(0),            // paise
+  creditDays: z.coerce.number().int().min(0).max(365).default(0),
+  paymentTerms: z.string().max(200).optional().or(z.literal('')),
+  expectedMonthlyPurchase: z.coerce.number().int().min(0).default(0), // paise
+  overrideReason: z.string().max(500).optional().or(z.literal('')),
+});
+export type ConvertLeadInput = z.input<typeof convertLeadSchema>;
+
 export const dailyReportSchema = z.object({
   reportDate: z.coerce.date(),
   areasVisited: z.array(z.string().max(120)).default([]),
