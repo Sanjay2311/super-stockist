@@ -1165,3 +1165,48 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   (the catalogue MRP for the waterfall), not the `product_prices.mrp` snapshot.
 - Shortcut: `bandsForCategory` is called once per row in
   `regenerateAllRecommended` (2 config reads per product) — see PONYTAIL-DEBT.
+
+## 2026-09-01 — Task 7: F&F catalogue seed (`seedCatalogue`)
+- `src/server/db/seed-catalogue.ts` (new) — `seedCatalogue(orgId?)` loads the real
+  184-SKU F&F catalogue as `products` + `product_prices` for an org (resolves
+  `orgId` via `seedBase()` when omitted). Exported `slug()` helper: UPPERCASE →
+  collapse non-alphanumeric runs to `-` → trim edge dashes. `skuCode` =
+  `slug(category)-slug(product)-slug(packLabel)` (e.g. `DRY-FRUITS-ALMOND-100G`).
+  The category prefix is load-bearing: `Quinoa 1kg` exists in BOTH Seeds and
+  Flours and would otherwise collide on the `(orgId, skuCode)` unique index —
+  verified both `SEEDS-QUINOA-1KG` and `FLOURS-QUINOA-1KG` land. A `-2/-3/…`
+  suffix guard covers any future same-run collision.
+- Rows: `products` carries `isDemo: false` (real data), `gstPct` from
+  `FF_CATALOGUE.gstPctByCategory[category]`, `volatilePrice`, `mrp`, `unit`,
+  `packGrams`, `packLabel`, `categoryId`; stock columns left at defaults.
+  `product_prices`: `ssBillingPrice = currentPaise`, band-derived
+  `floor/distributor/target/retailer` from
+  `recommendPricing({ …, bands: CONFIG_DEFAULTS.pricingBands })`, `mrp = mrpPaise`,
+  `isDemoAssumption: true`, `manualOverride: false`.
+- Categories: upsert by `(orgId, name)` (select-then-insert — no unique index on
+  that pair), `active: true`. 5 categories.
+- Idempotent: fast-bails to `{ categories: 0, products: 0 }` once the org has ≥ 150
+  products; also per-SKU skip by existing `skuCode`. Returns the counts CREATED
+  this run.
+- CLI: `seed-catalogue.ts` guard `process.argv[1]?.endsWith('seed-catalogue.ts')`
+  → `seedBase().then(({orgId}) => seedCatalogue(orgId))`. `seed.ts`'s guard is
+  `endsWith('seed.ts')` and does NOT match `seed-catalogue.ts` (ends `catalogue.ts`)
+  — no collision. `package.json`: new `db:seed:catalogue` script. `seed.ts`'s
+  `db:seed` branch now runs `seedCatalogue(orgId)` after `seedDemo()`.
+- Files: `src/server/db/seed-catalogue.ts` (new), `src/server/db/seed.ts`
+  (import + `db:seed` CLI branch), `package.json` (script),
+  `tests/services/seed-catalogue.test.ts` (new).
+- TDD: RED — `npm test -- seed-catalogue` → `Cannot find package
+  '@/server/db/seed-catalogue'`. GREEN after implementation → 3/3.
+- Tests: full `npm test` → 29 files / 98 passed, run twice, stable. Real seed:
+  `DATABASE_URL=…/devbrowse npm run db:seed:catalogue` → `{ categories: 5,
+  products: 184 }`; 2nd run → `{ categories: 0, products: 0 }` (184/184 rows
+  unchanged). Spot-check `DRY-FRUITS-ALMOND-100G`: ss 10700, mrp 19300, gst 12,
+  volatile, floor 11984 > ss. `npx tsc --noEmit` clean, `npm run lint` clean.
+- Deviations: (1) test file — added a 5-row `categories` assertion to the first
+  spec so the brief's `categories` import is used (lint) and the category upsert
+  is actually covered; specs otherwise verbatim. (2) `seed.ts` non-purge CLI
+  branch restructured to `seedBase().then(async ({orgId}) => { await seedDemo();
+  await seedCatalogue(orgId); })` since `seedDemo()` returns void — needed `orgId`.
+- Shortcuts: none. Plain per-SKU loop (184 iterations, one-off seed), no faker,
+  no configurable size.
