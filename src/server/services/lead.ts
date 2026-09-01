@@ -1,11 +1,12 @@
 import { and, desc, eq, ilike, isNull, or } from 'drizzle-orm';
 import { db } from '@/server/db/client';
-import { distributorLeads, activities } from '@/server/db/schema/crm';
+import { distributorLeads } from '@/server/db/schema/crm';
 import { leadSchema, scoreInputsSchema } from '@/lib/schemas';
 import { assertCan } from '@/server/auth/permissions';
 import { getConfig } from './config';
 import { scoreDistributor, assertWeightsValid, type ScoreWeights } from '@/domain/scoring';
 import { writeAudit } from './audit';
+import { addActivity } from './activity';
 import type { AppUser } from '@/server/auth/session';
 import type { LeadStage } from '@/domain/pipeline';
 import type { z } from 'zod';
@@ -83,16 +84,7 @@ export async function setStage(
     onHoldReason: stage === 'ON_HOLD' ? opts.onHoldReason ?? null : null,
     updatedAt: new Date(),
   }).where(eq(distributorLeads.id, id)).returning();
-  // ponytail: this timeline insert duplicates Task 14's addActivity — Task 14
-  // refactors setStage to call addActivity. Logged in PONYTAIL-DEBT.
-  await db.insert(activities).values({
-    orgId: user.orgId,
-    leadId: id,
-    employeeId: user.employeeId,
-    type: 'OTHER',
-    occurredAt: new Date(),
-    outcome: `Stage: ${before.stage} → ${stage}`,
-  });
+  await addActivity(user, { leadId: id, type: 'OTHER', outcome: `Stage: ${before.stage} → ${stage}` });
   await writeAudit(user, 'lead', id, 'setStage',
     { stage: before.stage, probability: before.probability }, { stage, probability });
   return row;

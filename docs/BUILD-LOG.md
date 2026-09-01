@@ -412,3 +412,51 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   verified and `setStage`/`updateLead`/`rescoreLead` are covered by passing vitest.
 - Shortcut: the timeline `activities` insert in `setStage` duplicates Task 14's
   `addActivity` — `ponytail:` comment in place, new PONYTAIL-DEBT row, cleared by Task 14.
+
+## 2026-09-01 — Task 14: Activity service + lead timeline
+
+- Shipped `src/server/services/activity.ts`: `ActivityRow` (`activities.$inferSelect`),
+  `ActivityInput` (`z.input<typeof activitySchema>` — mirrors the `lead.ts` pattern so
+  callers need not pass `occurredAt`). `addActivity(user, input)`:
+  `assertCan('activity.create')`, `activitySchema.parse` (its `.refine` rejects when
+  neither `leadId` nor `distributorId` is set), inserts one org-scoped row
+  (`employeeId = user.employeeId`, empty strings → null); **if `leadId` && `nextFollowUpAt`,
+  also `db.update(distributorLeads).set({ nextFollowUpAt, updatedAt })`** — the lead row
+  is the single source of truth for the next follow-up (spec §4.3). `listActivities(orgId, leadId)`:
+  not-deleted, `occurredAt desc`. No update/delete — activities are immutable.
+- `src/server/services/lead.ts`: `setStage` now records the pipeline-move row via
+  `await addActivity(user, { leadId: id, type: 'OTHER', outcome: 'Stage: <from> → <to>' })`;
+  removed the inline `db.insert(activities)` and the now-unused `activities` import.
+  Clears the Task 13 ponytail-debt row.
+- `src/app/(app)/leads/[id]/actions.ts`: added `logActivity(id, fd)` — `requireUser`,
+  builds the `ActivityInput` (`type` from the `type` field, `notes`/`outcome`/`nextAction`
+  strings, `nextFollowUpAt` from a `type="date"` input → `new Date(...)` or null), calls
+  `addActivity`, `revalidatePath('/leads/{id}')`. Also hardened `changeStage` (carried
+  from Task 13 review): rejects `'invalid stage'` if the string is not in `STAGES`, and
+  `'invalid lostReason'` if a present `lostReason` is not in `LOST_REASONS`.
+- `src/app/(app)/leads/[id]/page.tsx`: `#timeline` section filled — an add-activity
+  `<form action={logActivity.bind(null, id)}>` (type `<select>` over `ACTIVITY_TYPES`,
+  notes `<textarea>`, outcome + next-action inputs, `nextFollowUpAt` date input, submit)
+  and an `<ol>` of `listActivities(user.orgId, id)` rows showing
+  `occurredAt.toLocaleString('en-IN')` · type, then notes / outcome / "next: …" /
+  "follow-up <date>" when present; "No activity yet." when empty.
+- TDD: `tests/services/activity.test.ts` — written first, RED (module not found), then
+  GREEN 2/2: (1) `addActivity(owner, { leadId, type:'CALL', notes, nextFollowUpAt: due })`
+  → `distributor_leads.next_follow_up_at === due` AND `listActivities` length 1;
+  (2) `addActivity(owner, { type:'CALL' })` rejects (no lead/distributor).
+- Tests: `npm test -- lead-stage services/activity` → 2 files / 4 passed. Full `npm test`
+  → 14 files / 37 passed, run twice, stable. `npx tsc --noEmit` clean. `npm run lint` clean.
+  Dev (`next dev` already running, dev-login hatch): drove `addActivity` against the dev DB
+  for a lead, then confirmed `/leads/<id>` renders the timeline row
+  (`1/9/2026, 8:57:28 am · CALL` / notes / outcome / `next: …` / `follow-up 15/9/2026`)
+  and `/leads` shows `15/9/2026` in the Next-follow-up column; cleaned the row after.
+- Deviations: (1) the brief's Step-1 test snippet used `contactPerson: 'C'`, which fails
+  `leadSchema` `min(2)` at `createLead` — changed to `'Chandan'`. (2) dropped the `as any`
+  on the second test's input (lint `no-explicit-any`); `{ type: 'CALL' }` is already
+  assignable to `ActivityInput` since `leadId`/`distributorId` are optional, and the
+  `.refine` still rejects it at runtime. (3) `ActivityInput` is defined in `activity.ts`
+  as `z.input<...>` rather than imported from `schemas.ts` (where it is `z.infer`, the
+  output type with a required `occurredAt`) — same split the repo already uses for
+  `LeadInput`. (4) Server-action POSTs still not exercisable by `curl` (Next flight wire
+  format); covered by vitest + the direct-service dev check above.
+- No new ponytail debt.

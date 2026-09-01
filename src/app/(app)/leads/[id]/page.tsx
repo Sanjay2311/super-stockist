@@ -1,9 +1,11 @@
 import { notFound } from 'next/navigation';
 import { requireUser } from '@/server/auth/session';
 import { getLead } from '@/server/services/lead';
+import { listActivities } from '@/server/services/activity';
 import { GradeBadge } from '@/components/grade-badge';
 import { formatINR } from '@/domain/money';
-import { saveLeadFields, saveScore, changeStage } from './actions';
+import { ACTIVITY_TYPES } from '@/lib/schemas';
+import { saveLeadFields, saveScore, changeStage, logActivity } from './actions';
 import { StageForm } from './stage-form';
 
 const SCORE_FIELDS: { key: string; label: string }[] = [
@@ -27,6 +29,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   if (!lead) notFound();
 
   const scoreInputs = (lead.scoreInputs ?? {}) as Record<string, number>;
+  const timeline = await listActivities(user.orgId, id);
 
   return (
     <main className="max-w-3xl space-y-6 p-6">
@@ -109,10 +112,48 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <p className="mt-2 text-xs text-neutral-400">Weighted value: {formatINR(Math.round((lead.expectedFfMonthlyPotential * lead.probability) / 100))}</p>
       </section>
 
-      {/* Task 14 fills this with the activity timeline. */}
+      {/* Card 4: activity timeline */}
       <section id="timeline" className="rounded border p-4">
         <h2 className="mb-3 text-sm font-medium">Timeline</h2>
-        <div className="text-sm text-neutral-400">Activity timeline — added in Task 14.</div>
+        <form action={logActivity.bind(null, id)} className="grid grid-cols-2 gap-3">
+          <label className="text-sm">Type
+            <select name="type" defaultValue="CALL" className={field}>
+              {ACTIVITY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </label>
+          <label className="text-sm">Next follow-up
+            <input name="nextFollowUpAt" type="date" className={field} />
+          </label>
+          <label className="col-span-2 text-sm">Notes
+            <textarea name="notes" rows={2} className={field} />
+          </label>
+          <label className="text-sm">Outcome
+            <input name="outcome" className={field} />
+          </label>
+          <label className="text-sm">Next action
+            <input name="nextAction" className={field} />
+          </label>
+          <div className="col-span-2">
+            <button className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white">Log activity</button>
+          </div>
+        </form>
+
+        <ol className="mt-4 space-y-3">
+          {timeline.map((a) => (
+            <li key={a.id} className="border-l-2 border-neutral-200 pl-3 text-sm">
+              <div className="text-neutral-500">
+                {new Date(a.occurredAt).toLocaleString('en-IN')} · <span className="font-medium text-neutral-800">{a.type}</span>
+              </div>
+              {a.notes && <div>{a.notes}</div>}
+              {a.outcome && <div className="text-neutral-600">{a.outcome}</div>}
+              {a.nextAction && <div className="text-neutral-600">next: {a.nextAction}</div>}
+              {a.nextFollowUpAt && (
+                <div className="text-neutral-400">follow-up {new Date(a.nextFollowUpAt).toLocaleDateString('en-IN')}</div>
+              )}
+            </li>
+          ))}
+          {timeline.length === 0 && <li className="text-sm text-neutral-400">No activity yet.</li>}
+        </ol>
       </section>
     </main>
   );

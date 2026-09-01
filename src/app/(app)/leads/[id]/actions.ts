@@ -2,8 +2,10 @@
 import { revalidatePath } from 'next/cache';
 import { requireUser } from '@/server/auth/session';
 import { updateLead, rescoreLead, setStage } from '@/server/services/lead';
+import { addActivity } from '@/server/services/activity';
 import { rupees } from '@/domain/money';
-import type { LeadStage } from '@/domain/pipeline';
+import { STAGES, type LeadStage } from '@/domain/pipeline';
+import { ACTIVITY_TYPES, LOST_REASONS } from '@/lib/schemas';
 
 const SCORE_KEYS = [
   'retailerNetwork', 'categoryExperience', 'geoCoverage', 'salesmen', 'deliveryInfra',
@@ -35,9 +37,29 @@ export async function saveScore(id: string, formData: FormData) {
 
 export async function changeStage(id: string, formData: FormData) {
   const user = await requireUser();
-  await setStage(user, id, String(formData.get('stage')) as LeadStage, {
-    lostReason: (formData.get('lostReason') || undefined) as string | undefined,
+  const stage = String(formData.get('stage'));
+  const lostReason = (formData.get('lostReason') || undefined) as string | undefined;
+  if (!STAGES.includes(stage as LeadStage)) throw new Error('invalid stage');
+  if (lostReason && !(LOST_REASONS as readonly string[]).includes(lostReason)) {
+    throw new Error('invalid lostReason');
+  }
+  await setStage(user, id, stage as LeadStage, {
+    lostReason,
     lostNotes: (formData.get('lostNotes') || undefined) as string | undefined,
+  });
+  revalidatePath(`/leads/${id}`);
+}
+
+export async function logActivity(id: string, formData: FormData) {
+  const user = await requireUser();
+  const next = formData.get('nextFollowUpAt');
+  await addActivity(user, {
+    leadId: id,
+    type: String(formData.get('type') ?? 'CALL') as (typeof ACTIVITY_TYPES)[number],
+    notes: String(formData.get('notes') ?? ''),
+    outcome: String(formData.get('outcome') ?? ''),
+    nextAction: String(formData.get('nextAction') ?? ''),
+    nextFollowUpAt: next ? new Date(String(next)) : null,
   });
   revalidatePath(`/leads/${id}`);
 }
