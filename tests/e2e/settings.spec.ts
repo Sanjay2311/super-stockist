@@ -23,6 +23,21 @@ test.describe.skip('settings', () => {
     await expect(page.getByLabel('Hot-lead probability threshold (%)')).toHaveValue('55');
   });
 
+  test('owner can edit the pricing bands and they persist', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel('Email').fill(process.env.E2E_OWNER_EMAIL ?? 'owner@example.com');
+    await page.getByLabel('Password').fill(process.env.E2E_OWNER_PASSWORD ?? 'password123');
+    await page.getByRole('button', { name: /sign in/i }).click();
+
+    await page.goto('/settings');
+    const field = page.getByLabel('SS target margin');
+    await field.fill('20');
+    await page.getByRole('button', { name: 'Save pricing bands' }).click();
+    await expect(page.getByText(/saved/i)).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel('SS target margin')).toHaveValue('20');
+  });
+
   test('sales rep cannot open settings', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('Email').fill(process.env.E2E_SALES_EMAIL ?? 'sales@example.com');

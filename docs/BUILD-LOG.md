@@ -1312,3 +1312,52 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   distributor 11984 → `savePrices(130)` → 13000 + `manualOverride=true` → reset →
   11984 + `manualOverride=false`. `saveProduct` with a blank `gstPct` leaves the
   stored value untouched (12 → 12).
+
+## 2026-09-01 — Task 9: Settings — editable pricing bands (audited) + regenerate
+
+- Shipped: OWNER-only "Pricing bands (%)" form on `/settings` — 6 labelled number
+  inputs (`ssMinMarginPct`, `ssNormalMarginPct`, `ssTargetMarginPct`,
+  `distributorMarginPct`, `retailerMarginPct`, `volatileFloorBufferPct`),
+  0–100 guard, one `config` / `pricingBands` / `update` audit row per save
+  (before + after). Plus a "Regenerate recommended prices" form (checkbox
+  "Only prices not manually set", default on) that reuses the existing
+  `regenerateAll` action from `products/actions.ts` — no second regenerate path.
+  Both blocks gated (`config.edit` / `pricing.recommend`, OWNER).
+- `savePricingBands(_prev, formData)` in `settings/actions.ts` mirrors
+  `saveScoreWeights` / `saveThresholds` exactly: `requireUser` →
+  `assertCan('config.edit')` → `Number(formData.get(k))` for the 6 `BAND_KEYS` →
+  `every(Number.isFinite && 0 ≤ v ≤ 100)` else `{ error: 'bands must be 0–100' }`
+  → `before = getConfig(...)` → `setConfig` → `writeAudit` → `revalidatePath` →
+  `{ ok: true }`.
+- Files: `src/app/(app)/settings/actions.ts` (+`savePricingBands`, `BAND_KEYS`),
+  `src/app/(app)/settings/forms.tsx` (bands `useActionState` form, `bands` prop),
+  `src/app/(app)/settings/page.tsx` (load `pricingBands`, render regenerate form),
+  `tests/services/settings-actions.test.ts` (+2 specs), `tests/e2e/settings.spec.ts`
+  (+1 skipped bands-persist spec).
+- TDD: added 2 failing specs (`savePricingBands is not a function`) → implemented →
+  green. Specs: valid bands persist + a single `config`/`pricingBands` audit row
+  with `action:'update'`, `oldValues` = defaults, `newValues` = new bands;
+  out-of-range (`retailerMarginPct=250`) → `{ error: 'bands must be 0–100' }`,
+  config unchanged.
+- Tests: `npm test` full — 29 files / **102 passed** (was 100, +2), run twice,
+  stable. `npx tsc --noEmit` clean, `npm run lint` clean, `npm run build` clean
+  (`/settings` 2 kB).
+- Dev check (dev OWNER, :3000, driven with a throwaway Playwright script):
+  `/settings` → set `ssTargetMarginPct` 18 → 20 → "Save pricing bands" → "Saved";
+  reload → field still 20; DB `app_config.pricingBands.ssTargetMarginPct = 20` +
+  `audit_log` row `config`/`pricingBands`/`update` old 18 → new 20. Then
+  "Regenerate recommended prices" (checkbox on) → non-overridden `Almond 100g`
+  `target_price` 12626 → 12840 (= round(cost 10700 × 1.20)), `manual_override`
+  still false. Reverted the dev config + regenerated at defaults afterwards
+  (12840 → 12626).
+- Deviations: (1) `savePricingBands` casts the parsed object
+  `as Record<(typeof BAND_KEYS)[number], number>` rather than the brief's
+  `as PricingBands` — TS rejects casting `{ [k: string]: number }` straight to the
+  `PricingBands` *interface* ("insufficient overlap"); the `Record` form is
+  structurally identical and assigns cleanly into `setConfig`'s `PricingBands`
+  param. (2) Bands inputs are uncontrolled (`defaultValue`), like the thresholds
+  form — no live-sum constraint applies to bands, so the controlled-state pattern
+  from the score-weights form isn't needed. (3) Added a matching `chromium-headless-shell`
+  Playwright build (`npx playwright install`) to run the visual check headless —
+  the checked-in e2e suite stays `describe.skip` (unchanged ceiling).
+- Shortcuts: none beyond the pre-existing e2e skip.

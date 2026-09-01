@@ -13,6 +13,11 @@ const WEIGHT_KEYS = [
   'workingCapital', 'brandPortfolio', 'reputation', 'willingness',
 ] as const;
 
+const BAND_KEYS = [
+  'ssMinMarginPct', 'ssNormalMarginPct', 'ssTargetMarginPct',
+  'distributorMarginPct', 'retailerMarginPct', 'volatileFloorBufferPct',
+] as const;
+
 export async function saveScoreWeights(_prev: unknown, formData: FormData) {
   const user = await requireUser();
   assertCan(user, 'config.edit');
@@ -40,6 +45,22 @@ export async function saveThresholds(_prev: unknown, formData: FormData) {
   const before = await getConfig(user.orgId, 'hotLeadProbabilityThreshold');
   await setConfig(user.orgId, 'hotLeadProbabilityThreshold', n);
   await writeAudit(user, 'config', 'hotLeadProbabilityThreshold', 'update', before, n);
+  revalidatePath('/settings');
+  return { ok: true as const };
+}
+
+export async function savePricingBands(_prev: unknown, formData: FormData) {
+  const user = await requireUser();
+  assertCan(user, 'config.edit');
+  const bands = Object.fromEntries(
+    BAND_KEYS.map((k) => [k, Number(formData.get(k))]),
+  ) as Record<(typeof BAND_KEYS)[number], number>;
+  if (!BAND_KEYS.every((k) => Number.isFinite(bands[k]) && bands[k] >= 0 && bands[k] <= 100)) {
+    return { error: 'bands must be 0–100' };
+  }
+  const before = await getConfig(user.orgId, 'pricingBands');
+  await setConfig(user.orgId, 'pricingBands', bands);
+  await writeAudit(user, 'config', 'pricingBands', 'update', before, bands);
   revalidatePath('/settings');
   return { ok: true as const };
 }
