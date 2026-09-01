@@ -1361,3 +1361,62 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   Playwright build (`npx playwright install`) to run the visual check headless —
   the checked-in e2e suite stays `describe.skip` (unchanged ceiling).
 - Shortcuts: none beyond the pre-existing e2e skip.
+
+## 2026-09-01 — M2a Task 10: dev-fixtures catalogue wiring + docs + M2a wrap
+
+- `scripts/dev-fixtures.ts` — after the dev-user / territories / leads block, one
+  new line `const cat = await seedCatalogue(orgId)` (import from
+  `@/server/db/seed-catalogue`); the final `console.log` now reports the catalogue
+  counts. `npm run dev:fixtures` alone now gives a browsable app *with products*.
+  `seedCatalogue` is idempotent (bails to `{0,0}` once the org has ≥ 150
+  products), so a re-run is a no-op. Note: the script still short-circuits at its
+  existing "`dev@local` already present — nothing to do" guard, so on an
+  already-fixtured DB the catalogue line is not reached — that path only matters
+  on a fresh DB, where the catalogue is loaded alongside the dev owner.
+- Docs: this Task 10 entry + the **Milestone 2a complete** line below;
+  `docs/PONYTAIL-DEBT.md` +4 rows (CSV import/export UI deferred to M3 §40; GST
+  slabs per category are best-guess defaults pending F&F; `product_prices.mrp`
+  snapshot vs `products.mrp`; volatile `floorPrice == distributorPrice` at the
+  default bands) — the `PRODUCT_FINANCIAL_FIELDS` 3-name row was already present
+  from Task 6, left as-is; `README.md` gains `npm run db:seed:catalogue` in
+  local-setup and a note that the catalogue is real F&F data with band-derived
+  `distributor/floor/target` prices flagged `is_demo_assumption`.
+- **Controller ruling R4:** the plan's Step 2 test
+  `tests/services/dev-fixtures-catalogue.test.ts` was NOT created — its only
+  assertion (184 products for the org) duplicates `tests/services/seed-catalogue.test.ts`.
+  No behaviour change in this task beyond the one-line wiring, which calls an
+  already-tested function; nothing new to gate.
+- Tests: `npm test` full → **29 files / 102 passed**, run twice, stable
+  (unchanged — this task adds no tests). `npx tsc --noEmit` clean, `npm run lint`
+  clean, `npm run build` clean (routes unchanged; `/products` 170 B).
+- Dev check: `npm run dev:fixtures` against `devbrowse` → "dev@local already
+  present" (catalogue already loaded by Task 7); `npm run dev` on :3000 →
+  `/products` `/settings` `/leads` `/pipeline` all 200, `/products` renders the
+  real SKUs (Almond/Cashew/Quinoa/Turmeric rows present).
+- Deviations: dev-fixtures catalogue line sits after the early-exit guard (per the
+  brief's "after the dev-user/leads block" instruction), so it is reached only on
+  a fresh DB. No corner cut beyond the 4 documented debt rows.
+
+## 2026-09-01 — Milestone 2a complete (Masters & Pricing)
+
+Shipped across M2a Tasks 1–10: the real **Farm & Farmers catalogue** as live data
+(`data/ff-catalogue.json` + typed loader; 184 SKUs, real Current/MRP, GST-inclusive)
+and an idempotent `seedCatalogue` (`npm run db:seed:catalogue`, wired into
+`db:seed` and `dev:fixtures`); the **product / price schema** — `categories`,
+`products`, `product_prices` (1:1, current values only, `is_demo_assumption` /
+`manual_override`) via migrations **0007** and **0008**; the **pricing calculator**
+(`src/domain/pricing.ts` — waterfall, net contribution, gross/contribution margin
+%, ex-GST taxable, max permissible discount, floor guard) and the
+**recommendation domain** (`src/domain/pricing-recommend.ts` — floor / distributor
+/ target / retailer + MRP suggestion + rationale + volatile buffer); the
+**product service** (`list` / `get` / `update` / `updatePrices` / `computeFor` /
+`resetToRecommended` / `regenerateAllRecommended`) with **SALES cost redaction**
+(`PRODUCT_FINANCIAL_FIELDS` + `redactProduct`) and audit on price/cost/band
+changes; the **Products & Pricing screens** (catalogue list, per-SKU calculator
+panel, recommended-vs-current with reset-to-recommended, nav entry for both roles);
+and **Settings** — editable pricing bands (audited) + regenerate-recommended-prices.
+Deferred to later milestones (each a PONYTAIL-DEBT row): CSV product import/export
+UI (M3 §40), MRP editing / `product_prices.mrp` sync (M2b/M3), per-category band
+editor UI, and the volatile-floor default revisit. Distributor Master, lead→
+distributor conversion, Quotations, price approval and Schemes are **Milestone 2b**.
+Tests: 29 files / 102 passed. `tsc` / `lint` / `build` clean.
