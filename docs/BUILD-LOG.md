@@ -609,3 +609,67 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   'Farida'; assertions unchanged. (3) `tasks.created_by` retyped to `text` via migration
   0004 so the brief's `id: 'o'` test user (and future SYSTEM actors) can be stored.
 - Shortcuts / ponytail debt: none.
+
+## 2026-09-01 — Task 18: Daily employee report — submit, derived counts, owner list
+
+- `src/server/services/dailyReport.ts` (new):
+  - `istDayBounds(date)` — `{ start, end }` UTC `Date` bounds for the IST calendar day
+    `date` falls in (offset +330 min; `start` = 00:00 IST as UTC, `end` = +24 h). Local
+    helper — returns `Date`s, not day-keys, so it does not reuse `followup.ts`'s key math.
+  - `submitReport(user, input)` — `assertCan(user,'dailyReport.submit')`, then throw
+    `Error('no employee record')` if `user.employeeId` is null; `dailyReportSchema.parse`;
+    `insert ... onConflictDoUpdate` on the unique `(orgId, employeeId, reportDate)` index
+    (sets `areasVisited`/`notes`/`blockers`/`submittedAt`). `reportDate` stored as `ymd()`.
+  - `deriveCounts(orgId, employeeId, date)` — `{ activity, funnel }`, two groups kept
+    SEPARATE (spec §5.7, never summed). `activity` = `activities` rows for that
+    employee with `occurred_at` in the IST day, counted by type
+    (calls/meetings/presentations/followUpsCompleted/quotations). `funnel` from
+    `distributor_leads` assigned to the employee: `newLeads` = `created_at` in the day;
+    `qualifiedLeads` = stage rank ≥ QUALIFIED & `updated_at` in the day; `appointments`
+    / `firstOrders` = exact stage APPOINTED / FIRST_ORDER & `updated_at` in the day.
+    Row filtering done in JS (tiny per-employee-per-day sets) to dodge bigint casts.
+  - `listReports(orgId, { employeeId?, from?, to? })` — reports newest `reportDate` first
+    (tiebreak `submittedAt` desc), left-joined to `employees.name`, each row enriched via
+    `Promise.all(... deriveCounts(orgId, row.employeeId, new Date(row.reportDate)))`.
+- `src/app/(app)/daily-report/actions.ts` (new) — `submitDailyReport(formData)`:
+  `requireUser`, split `areasVisited` on comma (trim + drop blanks), `submitReport`,
+  `redirect('/daily-report?done=1')`.
+- `src/app/(app)/daily-report/page.tsx` (replaced placeholder) — server component;
+  `!user.employeeId` → "No employee record linked — ask the owner."; else date (default
+  today) / areas (comma text) / notes / blockers form → action; `?done=1` success note;
+  below, today's `deriveCounts` as read-only **Activity** and **Funnel** tile grids, each
+  under its own heading with a "tracked separately — never added together" caption.
+- `src/app/(app)/reports/daily/page.tsx` (replaced placeholder) — `requireUser`;
+  `if (!can(user,'dailyReport.viewAll')) redirect('/')`; `listReports(user.orgId)`; table
+  of date / employee / areas / Activity block / Funnel block / notes / blockers
+  (Activity + Funnel as separate stacked count lists per row, `overflow-x-auto` wrap).
+- No `db` import in either page — both go through the service.
+- TDD RED→GREEN: `tests/services/dailyReport.test.ts`
+  - RED: `Cannot find package '@/server/services/dailyReport'`.
+  - GREEN 2/2: (1) `submitReport` for an OWNER with `employeeId: null` rejects with
+    `no employee record`; a SALES rep submitting twice for 2026-08-31 leaves ONE row and
+    the second submit wins (`areasVisited` == `['Hoodi']`, `notes` == `'revised'`).
+    (2) an employee who logged a CALL + a MEETING on 2026-08-31 and created 1 lead that
+    day → `activity.calls` 1, `activity.meetings` 1, `activity.presentations` 0,
+    `funnel.newLeads` 1.
+- Tests: `npm test -- dailyReport` → 1 file / 2 passed. Full `npm test` → 19 files /
+  48 passed, run twice, stable. `npx tsc --noEmit` clean. `npm run lint` clean.
+- Dev check (`next dev` already on :3000, dev-login hatch, DB devbrowse): ran the real
+  `submitReport` twice for today as the dev OWNER (`Dev Owner` employee) — `listReports`
+  returned 1 row, second submit's areas/notes/`blockers=null` won. `/daily-report` renders
+  the form + separate Activity / Funnel tile grids; `/reports/daily` renders the row
+  (Dev Owner · "Whitefield, Marathahalli" · "revised: met 4" · Activity + Funnel blocks).
+  Funnel showed `newLeads 6 / qualifiedLeads 4` off the dev-fixtures leads (all created +
+  restaged today) — the `updated_at`-proxy behaving as documented. Dev report row deleted
+  after.
+- Deviations: (1) `DailyReportInput` is a local `z.input<...>` alias (schema's
+  `areasVisited` has `.default([])`), same pattern as lead/activity/task. (2) brief's
+  Step-1 test used `contactPerson: 'D'` (fails `leadSchema` min(2)) — changed to 'Dinesh';
+  assertions unchanged. (3) the funnel test creates the lead then pins its `created_at` to
+  the report day with a direct `db.update` — `createLead` stamps `created_at` = now
+  (2026-09-01), so without this the 2026-08-31 `newLeads` assertion is clock-dependent;
+  the fix makes the test deterministic. (4) `listReports` also returns `employeeName`
+  (left-join) — the brief's owner table needs it and it avoids a `db` import in the page.
+- Shortcuts / ponytail debt: funnel counts in `deriveCounts` use `updated_at`-on-the-day
+  as a proxy for "moved to this stage that day" (`// ponytail:` comment in the file +
+  new PONYTAIL-DEBT row; real fix = audit_log-derived counts in M3).
