@@ -97,62 +97,84 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         )}
       </section>
 
-      {/* Recommended vs current + overrides */}
+      {/* Recommended vs current + overrides.
+          PricingPanel is a client component and would serialize the whole
+          RecommendResult (floorPrice / targetPrice / marginAtEach / cost-revealing
+          rationale) into the RSC payload — readable via view-source even when the
+          rows are painted hidden. So it is mounted ONLY for the editing role
+          (OWNER); SALES gets a plain server-rendered table of non-cost prices and
+          no `recommend` object ever crosses to a client component. */}
       <section className="rounded border p-4">
         <div className="mb-3 flex items-center gap-2">
-          <h2 className="text-sm font-medium">Recommended vs current</h2>
+          <h2 className="text-sm font-medium">{canEdit ? 'Recommended vs current' : 'Current prices'}</h2>
           {price.manualOverride && (
             <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">manual override</span>
           )}
         </div>
-        <PricingPanel
-          recommend={recommend}
-          current={{
-            distributorPrice: price.distributorPrice,
-            retailerPrice: price.retailerPrice,
-            floorPrice: showCost ? price.floorPrice : undefined,
-            targetPrice: showCost ? price.targetPrice : undefined,
-            ssBillingPrice: showCost ? price.ssBillingPrice : undefined,
-          }}
-          canEdit={canEdit}
-          savePrices={savePrices.bind(null, id)}
-          resetPrices={resetPrices.bind(null, id)}
-        />
+        {canEdit ? (
+          <PricingPanel
+            recommend={recommend}
+            current={{
+              distributorPrice: price.distributorPrice,
+              retailerPrice: price.retailerPrice,
+              floorPrice: price.floorPrice,
+              targetPrice: price.targetPrice,
+              ssBillingPrice: price.ssBillingPrice,
+            }}
+            canEdit
+            savePrices={savePrices.bind(null, id)}
+            resetPrices={resetPrices.bind(null, id)}
+          />
+        ) : (
+          <table className="w-full text-sm">
+            <tbody>
+              <tr className="border-b">
+                <td className="py-1 text-neutral-500">MRP</td>
+                <td className="text-right">{product.mrp != null ? formatINR(product.mrp) : '—'}</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-1 text-neutral-500">Retailer price</td>
+                <td className="text-right">{price.retailerPrice != null ? formatINR(price.retailerPrice) : '—'}</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-1 text-neutral-500">Distributor price</td>
+                <td className="text-right">{formatINR(price.distributorPrice)}</td>
+              </tr>
+            </tbody>
+          </table>
+        )}
       </section>
 
-      {/* Price waterfall + margins */}
-      <section className="rounded border p-4">
-        <h2 className="mb-3 text-sm font-medium">Price waterfall</h2>
-        <table className="w-full text-sm">
-          <tbody>
-            <tr className="border-b">
-              <td className="py-1 text-neutral-500">MRP</td>
-              <td className="text-right">{w.mrp != null ? formatINR(w.mrp) : '—'}</td>
-            </tr>
-            <tr className="border-b">
-              <td className="py-1 text-neutral-500">Retailer price</td>
-              <td className="text-right">{w.retailerPrice != null ? formatINR(w.retailerPrice) : '—'}</td>
-            </tr>
-            <tr className="border-b">
-              <td className="py-1 text-neutral-500">Distributor price</td>
-              <td className="text-right">{formatINR(w.distributorPrice)}</td>
-            </tr>
-            {showCost && (
+      {/* Price waterfall + margins — OWNER only (every row below distributor is a
+          cost/margin figure; the non-cost rows are already shown above for SALES). */}
+      {showCost && (
+        <section className="rounded border p-4">
+          <h2 className="mb-3 text-sm font-medium">Price waterfall</h2>
+          <table className="w-full text-sm">
+            <tbody>
+              <tr className="border-b">
+                <td className="py-1 text-neutral-500">MRP</td>
+                <td className="text-right">{w.mrp != null ? formatINR(w.mrp) : '—'}</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-1 text-neutral-500">Retailer price</td>
+                <td className="text-right">{w.retailerPrice != null ? formatINR(w.retailerPrice) : '—'}</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-1 text-neutral-500">Distributor price</td>
+                <td className="text-right">{formatINR(w.distributorPrice)}</td>
+              </tr>
               <tr className="border-b">
                 <td className="py-1 text-neutral-500">SS billing price</td>
                 <td className="text-right">{formatINR(w.ssPrice)}</td>
               </tr>
-            )}
-            {showCost && (
               <tr className="border-b">
                 <td className="py-1 text-neutral-500">SS cost</td>
                 <td className="text-right">{formatINR(w.ssCost)}</td>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
 
-        {showCost && (
           <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
             <div>
               <dt className="text-neutral-500">Gross margin</dt>
@@ -172,8 +194,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             </div>
             {pricing.belowFloor && <div className="font-medium text-red-600">Below floor price</div>}
           </dl>
-        )}
-      </section>
+        </section>
+      )}
     </main>
   );
 }

@@ -9,6 +9,7 @@ import {
   updateProduct,
 } from '@/server/services/product';
 import { rupees } from '@/domain/money';
+import { productSchema } from '@/lib/schemas';
 
 // Rupee inputs from the override form; the columns store integer paise.
 const PRICE_FIELDS = ['ssBillingPrice', 'distributorPrice', 'floorPrice', 'targetPrice', 'retailerPrice'] as const;
@@ -38,14 +39,26 @@ export async function regenerateAll(formData: FormData) {
   revalidatePath('/', 'layout');
 }
 
+const productFieldsSchema = productSchema
+  .pick({ name: true, gstPct: true, volatilePrice: true, active: true })
+  .partial();
+
 export async function saveProduct(productId: string, formData: FormData) {
   const user = await requireUser();
   if (!can(user, 'product.edit')) throw new Error('forbidden');
-  await updateProduct(user, productId, {
-    name: String(formData.get('name') ?? ''),
-    gstPct: Number(formData.get('gstPct') ?? 0),
+  // Blank text/number inputs → omit the key (don't send '' / 0); checkboxes are
+  // always a real boolean. Zod validates name length / gstPct range here, not just
+  // the HTML attrs (a crafted POST bypasses those).
+  const text = (k: string) => {
+    const v = formData.get(k);
+    return v === null || v === '' ? undefined : String(v);
+  };
+  const patch = productFieldsSchema.parse({
+    name: text('name'),
+    gstPct: text('gstPct'),
     volatilePrice: formData.get('volatilePrice') === 'on',
     active: formData.get('active') === 'on',
   });
+  await updateProduct(user, productId, patch);
   revalidatePath(`/products/${productId}`);
 }

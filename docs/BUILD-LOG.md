@@ -1276,3 +1276,39 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   params typed (`page: Page`, strings) — the brief's untyped snippet fails
   `tsc --noEmit` (repo type-checks `tests/`). Test bodies otherwise verbatim.
 - Shortcuts: none beyond the e2e skip (tracked in PONYTAIL-DEBT — row extended).
+
+### 2026-09-01 — Task 8 review fix (CRITICAL + minor)
+- CRITICAL: `src/app/(app)/products/[id]/page.tsx` passed the full un-redacted
+  `RecommendResult` (floorPrice / targetPrice / marginAtEach / mrpSuggestion +
+  the rationale whose distributor line prints "your gross ₹x/unit", back-solvable
+  to `ssBillingPrice`) into `<PricingPanel>` — a `'use client'` component — for
+  every role. The rows were painted-hidden for SALES but the values were still
+  serialized into the RSC/client payload (view-source / React DevTools readable),
+  and `/products/[id]` is reachable by SALES (`product.view` + Products nav).
+  Fix: mount `<PricingPanel>` ONLY when `can(user,'product.edit')` (OWNER). SALES
+  now gets a plain server-rendered table of the non-cost prices (MRP / retailer /
+  distributor) — no `recommend` object crosses any client boundary. The waterfall
+  + margins `<section>` (all rows below distributor are cost/margin) is now gated
+  as a whole on `showCost` (was per-row) so SALES doesn't see a near-empty dupe.
+  `PricingResult` (`data.pricing`) was already server-only behind `showCost` —
+  still is; it never reaches a client component.
+  Files: `src/app/(app)/products/[id]/page.tsx:100-197` (the two sections
+  rewritten; load-bearing comment added at the mount gate).
+- Minor: `saveProduct` in `src/app/(app)/products/actions.ts:44-66` no longer
+  sends `''`/`0` for blank inputs — blank text/number fields are omitted from the
+  patch (checkboxes stay explicit booleans), and the 4 fields are validated by
+  `productSchema.pick({name,gstPct,volatilePrice,active}).partial().parse(...)` in
+  the action (name length / gstPct 0–28 enforced server-side, not just via HTML
+  attrs + `updateProduct`'s zod).
+- Covering check: `tests/domain/permissions.test.ts` +1 pure spec —
+  `can(sales,'product.edit') === false` / `can(owner,'product.edit') === true`
+  named as the gate that withholds the pricing calculator + `RecommendResult`
+  from SALES (nav.test-style; the repo has no RSC render harness). Comment at the
+  mount site points back to it.
+- Verify: `npm test` full — 29 files / **100 passed** (was 99, +1), run twice,
+  stable. `npx tsc --noEmit` clean, `npm run lint` clean, `npm run build` clean.
+  `npm run e2e -- products` → 2 skipped. Dev (dev OWNER, :3000): `/products/[id]`
+  still shows the panel + rationale + waterfall + Gross margin; override
+  distributor 11984 → `savePrices(130)` → 13000 + `manualOverride=true` → reset →
+  11984 + `manualOverride=false`. `saveProduct` with a blank `gstPct` leaves the
+  stored value untouched (12 → 12).
