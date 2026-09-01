@@ -79,7 +79,7 @@ export const taskSchema = z.object({
 export type TaskInput = z.infer<typeof taskSchema>;
 
 // ── Product master ─────────────────────────────────────────────────────────
-export const PRODUCT_UNITS = ['G', 'KG', 'ML', 'L', 'PCS'] as const;
+export const PRODUCT_UNITS = ['G', 'KG', 'ML', 'L', 'PC'] as const;
 
 const intGte0 = z.coerce.number().int().min(0);
 

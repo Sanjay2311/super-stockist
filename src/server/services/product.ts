@@ -243,6 +243,15 @@ export async function regenerateAllRecommended(
     .leftJoin(categories, eq(categories.id, products.categoryId))
     .where(and(...conds));
 
+  // Read the band config once, not once per product — bandsForCategory would do two
+  // getConfig round-trips on every row. Merge the per-category override in memory instead.
+  const [baseBands, bandOverrides] = await Promise.all([
+    getConfig(user.orgId, 'pricingBands'),
+    getConfig(user.orgId, 'pricingBandsByCategory'),
+  ]);
+  const bandsFor = (categoryName: string | null) =>
+    categoryName ? { ...baseBands, ...(bandOverrides[categoryName] ?? {}) } : baseBands;
+
   let updated = 0;
   const changes: {
     productId: string;
@@ -251,7 +260,7 @@ export async function regenerateAllRecommended(
   }[] = [];
   for (const r of rows) {
     const price = r.price!;
-    const bands = await bandsForCategory(user.orgId, r.categoryName);
+    const bands = bandsFor(r.categoryName);
     const rec = recommendPricing({
       ssBillingPrice: price.ssBillingPrice,
       mrp: r.product.mrp,
