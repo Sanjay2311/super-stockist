@@ -673,3 +673,64 @@ One entry per completed task: what shipped, files touched, tests run + result, s
 - Shortcuts / ponytail debt: funnel counts in `deriveCounts` use `updated_at`-on-the-day
   as a proxy for "moved to this stage that day" (`// ponytail:` comment in the file +
   new PONYTAIL-DEBT row; real fix = audit_log-derived counts in M3).
+
+## 2026-09-01 — Task 19: Settings — editable score weights + hot-lead threshold
+
+- `src/app/(app)/settings/actions.ts` (new) — `'use server'`; two form actions,
+  `useActionState` signature `(_prev, formData)`:
+  - `saveScoreWeights` — `requireUser`; `assertCan(user,'config.edit')` (throws
+    `forbidden` for SALES); reads the 9 integer weight fields into a `ScoreWeights`;
+    `assertWeightsValid` in a try/catch → `{ error: <message> }` on sum≠100;
+    `setConfig(orgId,'scoreWeights',weights)`; `revalidatePath('/settings')`;
+    `{ ok: true }`.
+  - `saveThresholds` — same gate; `Number(...)` the `hotLeadProbabilityThreshold`
+    field; `!Number.isInteger || <0 || >100` → `{ error: 'threshold must be 0–100' }`;
+    else `setConfig(orgId,'hotLeadProbabilityThreshold',n)` + revalidate + `{ ok }`.
+- `src/app/(app)/settings/forms.tsx` (new, `'use client'`) — `<SettingsForms weights
+  threshold />`; two `useActionState` forms. Weights form: 9 number inputs (labelled
+  per key), `useState`-tracked values with a live "Sum: N / 100" line that turns red
+  off-100, an error line from `assertWeightsValid`, "Saved" on `ok`, "Save score
+  weights" button. Thresholds form: one "Hot-lead probability threshold (%)" number
+  input (`defaultValue`), error line, "Saved", "Save thresholds" button.
+- `src/app/(app)/settings/page.tsx` (replaced placeholder) — server component;
+  `requireUser`; `if (!can(user,'config.edit')) redirect('/')`; `Promise.all` of
+  `getConfig` for `scoreWeights` + `hotLeadProbabilityThreshold`; renders
+  `<SettingsForms>` + a read-only `<pre>` of `CONFIG_DEFAULTS.stageProbability`
+  labelled "read-only in M1" with a `// ponytail:` note (editor deferred to M2). No
+  `db` import — config goes through the service.
+- TDD RED→GREEN: `tests/services/settings-actions.test.ts` (Vitest) — mocks
+  `@/server/auth/session` `requireUser` (OWNER + SALES `AppUser`s) and `next/cache`
+  `revalidatePath`; `beforeAll(migrateTestDb)` + `beforeEach(resetDb)` + `seedBase()`.
+  - RED: `Cannot find package '@/app/(app)/settings/actions'`.
+  - GREEN 6/6: (1) `saveScoreWeights(null, fd)` with 9 weights summing to 100 →
+    `{ ok: true }` and `getConfig(orgId,'scoreWeights')` equals them. (2) weights
+    summing to 105 → `{ error: 'score weights must sum to 100, got 105' }`, config
+    still `CONFIG_DEFAULTS.scoreWeights`. (3) SALES caller → rejects `forbidden`.
+    (4) `saveThresholds(null, fd)` `hotLeadProbabilityThreshold=55` → `{ ok: true }`,
+    `getConfig` → 55. (5) `=120` → `{ error: 'threshold must be 0–100' }`, config
+    unchanged (60). (6) SALES caller → rejects `forbidden`.
+- `tests/e2e/settings.spec.ts` (new) — `test.describe.skip('settings', ...)` with the
+  brief's two specs (owner changes threshold + reload persists; SALES redirected off
+  `/settings`). Skipped: no local Supabase auth (same ceiling as auth/nav/lead-pipeline
+  specs); `// ponytail:` header + extended the e2e-skip PONYTAIL-DEBT row. Real gate is
+  the Vitest suite above.
+- Tests: `npm test -- settings-actions` → 1 file / 6 passed. Full `npm test` → 20
+  files / 54 passed, run twice, stable. `npx tsc --noEmit` clean. `npm run lint` clean.
+- Dev check (`next dev` on :3000, dev-login hatch `dev@local` = OWNER, DB devbrowse):
+  `GET /settings` (curl) renders both forms + the read-only stage-probability `<pre>`
+  (no redirect → OWNER gate open). Server-action submit can't be driven headless here,
+  so persistence was verified through the service layer against the dev DB: a script
+  that `setConfig(orgId,'hotLeadProbabilityThreshold',55)` then `getConfig` read back
+  55, restored to 60 — the exact round-trip `saveThresholds` performs. The sum≠100
+  error path is covered by the Vitest case + the live red "Sum: N / 100" line.
+- Deviations: (1) e2e spec kept env-var fallbacks (`E2E_OWNER_EMAIL` etc.) matching
+  `auth.spec.ts` rather than the brief's hard-coded `owner@example.com`. (2) Added SALES
+  deny cases for BOTH actions (brief lists one). (3) `forms.tsx` weight inputs are
+  controlled (`useState`) to drive the live sum; the threshold input stays uncontrolled
+  (`defaultValue`) since it has no live readout. (4) `revalidatePath` mocked in the
+  Vitest suite — it needs a request scope absent under vitest (same reason the pipeline
+  action test never exercises its success branch).
+- Shortcuts / ponytail debt: stage-probability map is display-only in M1 (editor
+  deferred to M2 — needs per-stage validation + a rescore sweep); `// ponytail:` note
+  in `page.tsx` + new PONYTAIL-DEBT row. e2e-skip ledger row extended to name
+  `settings.spec.ts`.
