@@ -1210,3 +1210,69 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   await seedCatalogue(orgId); })` since `seedDemo()` returns void — needed `orgId`.
 - Shortcuts: none. Plain per-SKU loop (184 iterations, one-off seed), no faker,
   no configurable size.
+
+## 2026-09-01 — Task 8: Products & Pricing screens + nav
+- Shipped the catalogue + per-SKU pricing UI. Files created:
+  `src/app/(app)/products/page.tsx` (list), `src/app/(app)/products/[id]/page.tsx`
+  (detail), `src/app/(app)/products/actions.ts`, `src/app/(app)/products/pricing-panel.tsx`
+  (`'use client'`), `tests/e2e/products.spec.ts` (`test.describe.skip`). Modified:
+  `src/components/app-nav.tsx` (nav item), `tests/domain/nav.test.ts` (+1 spec),
+  `docs/BUILD-LOG.md`, `docs/PONYTAIL-DEBT.md`.
+- List page (`/products`): server component, `requireUser` → `listProducts` +
+  `listCategories`, `redactProducts(user, rowsRaw)` at the read site, then
+  `showCost = user.role === 'OWNER'` gates the SS cost / Floor / Target `<th>`/`<td>`
+  (SALES sees Product / Category / MRP / Distributor only). q + category `<form>`
+  filter (GET to `/products`). OWNER-only `<details>` "Regenerate recommended
+  prices" wraps `regenerateAll` (the brief left this action unplaced; the all-SKUs
+  action belongs on the list, not a per-SKU screen). Empty state kept.
+- Detail page (`/products/[id]`): `computeFor(user.orgId, id)` → `notFound()` on
+  null; `redactProduct(user, data.product)`. Three areas: (1) Fields — editable
+  `<form action={saveProduct.bind(null, id)}>` (name / gstPct / volatilePrice /
+  active) when `can(user,'product.edit')`, else a read-only `<dl>`; (2)
+  `<PricingPanel>` recommended-vs-current table + override inputs; (3) price
+  waterfall table + margins. Cost-revealing rows/blocks (SS price, SS cost, gross
+  margin, net contribution, max permissible discount, belowFloor) are gated on
+  `showCost` — gross margin = selling − cost would otherwise let SALES back out
+  cost. "manual override" amber badge shown when `price.manualOverride`.
+- `actions.ts`: `savePrices(productId, formData)` builds a **partial** patch —
+  only `PRICE_FIELDS` present & non-empty in the FormData, each `rupees(Number(v))`
+  (rupee input → integer paise) — then `updatePrices(user, productId, patch)` +
+  `revalidatePath('/products/${productId}')`. `resetPrices` →
+  `resetToRecommended(user, productId)`. `regenerateAll` →
+  `regenerateAllRecommended(user, user.orgId, { onlyUnoverridden: fd.get('onlyUnoverridden') === 'on' })`
+  (orgId from `requireUser()`, never the form) + `revalidatePath('/', 'layout')`.
+  `saveProduct` guarded by `can(user,'product.edit')` → `updateProduct`. No `db`
+  import anywhere — all through `src/server/services/product.ts`.
+- `pricing-panel.tsx`: table Field | Recommended | Current | Override(₹, `step="0.01"`,
+  only when `canEdit`); rows for ss/floor/target hidden when the `current` value is
+  `undefined` (SALES). Override inputs sit in `<form action={savePrices}>` (start
+  empty, current shown as placeholder → only typed fields patch); "Reset to
+  recommended" is a separate `<form action={resetPrices}>`; the `recommend.rationale`
+  list renders only when `canEdit` (its distributor line prints "your gross ₹x/unit"
+  = distributorPrice − cost, a cost leak for SALES). `aria-label="<Field> override"`
+  so the e2e `getByLabel(/distributor price/i)` resolves.
+- Nav: `{ href: '/products', label: 'Products' }` after Territories, no `ownerOnly`
+  (SALES has `product.view`). `nav.test.ts` +1: `visibleNavItems` includes
+  `Products` for OWNER and SALES; the pre-existing "strict subset" spec still holds
+  (OWNER 9 / SALES 7).
+- Tests: `npm test` full — 29 files / 99 passed (was 98), run twice, stable.
+  `npm run e2e -- products` → 2 skipped. `npx tsc --noEmit` clean, `npm run lint`
+  clean, `npm run build` clean (`/products` + `/products/[id]` routes emitted).
+- Dev check (`npm run dev` :3000, dev OWNER): `/products` renders 184 rows with SS
+  cost / Floor / Target columns + the Regenerate `<details>`; Almond 100g detail
+  renders the recommended-vs-current table, the "Why these numbers" rationale, and
+  the price waterfall + Gross margin. Override flow driven through the underlying
+  services (server actions aren't curl-able): distributor 11984 → `savePrices(130)`
+  → 13000 (₹130.00) + `manualOverride=true` (amber "manual override" badge renders)
+  → `resetPrices` → back to band 11984, `manualOverride=false`.
+- Deviations: (1) list page passes `listProducts(..., { limit: 1000 })` — the
+  service default is 100 and the F&F catalogue is 184, so the brief's verbatim
+  no-limit call would truncate. No pagination added (YAGNI). (2) `regenerateAll`
+  wired as an OWNER-only `<details>` on the list page (brief defined the action but
+  not its UI home). (3) cost-derived rows in the waterfall/margins and the pricing
+  rationale list are gated for SALES (brief only spelled out the list-page column
+  gate + `redactProduct`); `computeFor` returns an un-redacted `PricingResult` /
+  `RecommendResult`, so the gate lives in the page/panel. (4) e2e `login()` helper
+  params typed (`page: Page`, strings) — the brief's untyped snippet fails
+  `tsc --noEmit` (repo type-checks `tests/`). Test bodies otherwise verbatim.
+- Shortcuts: none beyond the e2e skip (tracked in PONYTAIL-DEBT — row extended).

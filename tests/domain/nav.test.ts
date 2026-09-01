@@ -17,6 +17,11 @@ describe('visibleNavItems', () => {
     expect(sales).not.toContain('Reports');
   });
 
+  it('shows Products to both roles (product.view is granted to SALES)', () => {
+    expect(labels('OWNER')).toContain('Products');
+    expect(labels('SALES')).toContain('Products');
+  });
+
   it('SALES items are a strict subset of OWNER items', () => {
     const owner = labels('OWNER');
     const sales = labels('SALES');
