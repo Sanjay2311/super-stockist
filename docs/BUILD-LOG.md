@@ -517,3 +517,44 @@ One entry per completed task: what shipped, files touched, tests run + result, s
 - Ponytail debt: extended the e2e-skip row (adds `lead-pipeline.spec.ts`); +2 rows —
   deferred inline lost-reason modal (board routes LOST/ON_HOLD to the detail page), and
   `Board`'s `useState(leads)` not reconciling with revalidated props until a full reload.
+
+## 2026-09-01 — Task 16: Follow-up domain (buckets, hot-lead, needs-next-action) + follow-up service
+- `src/domain/followup.ts` (pure, only imports `./pipeline`): `type FollowUpBucket =
+  'OVERDUE' | 'TODAY' | 'UPCOMING' | 'NONE'`; `classifyFollowUp(nextFollowUpAt, now)` —
+  IST-day comparison via `IST_OFFSET_MIN = 330` + `istParts(d)` (shift then read UTC
+  y/m/day) + `y*10000+m*100+day` key: `NONE` if null, `OVERDUE` if key < today, `TODAY` if
+  equal, else `UPCOMING`; `isHotLead({grade,probability,stage,hotThreshold})` — `false` if
+  stage ∉ `OPEN_STAGES`, else `grade === 'A' || probability >= hotThreshold`;
+  `needsNextAction({stage,nextFollowUpAt})` — `OPEN_STAGES.includes(stage) &&
+  nextFollowUpAt == null`.
+- `src/server/services/followup.ts`: `type LeadLite` + `getFollowUpBuckets(orgId, opts?:
+  { assignedEmployeeId?; now? })` → `{ overdue, today, next7, noAction, hotNoAction }`.
+  Selects open (`inArray(stage, OPEN_STAGES)`), non-deleted leads, LEFT JOIN `employees`
+  for `assignee`, optional `assignedEmployeeId` filter; `hotThreshold` from
+  `getConfig(orgId, 'hotLeadProbabilityThreshold')`. Rows bucketed with the domain
+  helpers; `next7` = `UPCOMING` AND raw `nextFollowUpAt <= now + 7d`; `noAction` =
+  `needsNextAction`; `hotNoAction` = `noAction ∩ isHotLead`. `nextFollowUpAt` serialized to
+  ISO string for `LeadLite`; the raw `Date` is passed to `classifyFollowUp`. No
+  notification writing (M3).
+- TDD RED→GREEN:
+  - `tests/domain/followup.test.ts` — RED: `Cannot find package '@/domain/followup'`.
+    GREEN 3/3: bucket classification (NONE/OVERDUE/TODAY/UPCOMING at fixed `+05:30`
+    dates around IST 2026-08-31), hot-lead by grade A / probability ≥ threshold / stage
+    gate (LOST → false), needs-next-action (CONTACTED+null → true, CONTACTED+date →
+    false, ON_HOLD+null → false).
+  - `tests/services/followup.test.ts` — RED: `Cannot find package
+    '@/server/services/followup'`. GREEN 1/1: four leads (overdue / today / soon /
+    stage-only-no-follow-up) sorted into `overdue`=['Overdue Co'], `today`=['Today Co'],
+    `next7`=['Soon Co'], `noAction` contains 'NoAction Co', with `now` pinned to
+    2026-08-31T09:00+05:30.
+- Tests: `npm test -- domain/followup` → 1 file / 3 passed. `npm test -- followup` → 2
+  files / 4 passed. Full `npm test` → 17 files / 44 passed, run twice, stable. `npx tsc
+  --noEmit` clean. `npm run lint` clean.
+- Deviations: (1) the brief's service-test fixture used single-character `contactPerson`
+  values ('A'..'D') which fail the existing `leadSchema` `z.string().min(2)` and throw at
+  fixture setup — changed to 'Contact A'..'Contact D'; assertions and the fixed dates are
+  unchanged. (2) `classifyFollowUp` returns `UPCOMING` for any future IST day (no 7-day
+  ceiling in the domain fn, per Step 3 code); the ≤7-day window is applied in
+  `getFollowUpBuckets` (`next7`), so far-future follow-ups fall in no surfaced bucket —
+  matches the brief.
+- Shortcuts / ponytail debt: none.
