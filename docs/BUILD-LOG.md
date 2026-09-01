@@ -936,3 +936,46 @@ One entry per completed task: what shipped, files touched, tests run + result, s
 - Tests: `npm test` → 24 files / 72 passed (was 23/69; +1 file, +3 tests).
   `npx tsc --noEmit` clean. `npm run lint` clean.
 - Deviations: none. No corner cut → no PONYTAIL-DEBT row.
+
+## 2026-09-01 — M2a Task 2: categories / products / product_prices schema + migration 0007
+- `src/server/db/schema/product.ts` — 3 Drizzle tables, per-file `const ts`
+  (`created_at`/`updated_at`) pattern, `snake_case` cols / `camelCase` props:
+  - `categories` { id, org_id, name, parent_id (null), active (bool, def true),
+    deleted_at, ts }.
+  - `products` { id, org_id, brand_id (null), category_id (not null →
+    categories.id), sku_code, name, pack_label, pack_grams (null), unit (text,
+    def 'G'), mrp (bigint number, null), gst_pct (integer, def 5), shelf_life_days
+    (null), reorder_level / min_stock / max_stock / preferred_stock (integer, def
+    0), active (def true), volatile_price (def false), is_demo (def false),
+    deleted_at, ts }. Indexes: unique `products_org_sku_idx` (org_id, sku_code),
+    `products_org_cat_idx` (org_id, category_id), `products_org_active_idx`
+    (org_id, active).
+  - `product_prices` { id, org_id, product_id (not null → products.id), 4 NOT
+    NULL paise cols (ss_billing_price, distributor_price, floor_price,
+    target_price), retailer_price (null), mrp (null — snapshot copy, canonical
+    stays on products; PONYTAIL-DEBT row deferred to a later task per brief),
+    is_demo_assumption / manual_override (bool, def false), override_by (null),
+    override_at (null), effective_from (timestamptz, def now), ts }. Unique index
+    `product_prices_product_idx` (product_id) → 1:1.
+  - All paise cols `bigint(..., { mode: 'number' })`; `gst_pct` whole-percent
+    `integer`.
+- `src/server/db/schema/index.ts` — added `export * from './product';`.
+- `tests/services/product-schema.test.ts` — 3 specs (from the brief): insert
+  category + product (asserts defaulted `active`/`volatilePrice`/`unit`) + 1:1
+  price row (defaulted `manualOverride`/`isDemoAssumption`); second price row for
+  same product rejects (unique `product_prices_product_idx`); duplicate
+  `skuCode` per org rejects (unique `products_org_sku_idx`).
+- `drizzle/0007_cheerful_johnny_blaze.sql` + `drizzle/meta/0007_snapshot.json` +
+  `_journal.json` — `npm run db:generate`: 3 `CREATE TABLE`, 2 FKs
+  (`product_prices.product_id → products.id`, `products.category_id →
+  categories.id`), 4 indexes (2 unique + 2 plain). Journal idx 7, tag
+  `0007_cheerful_johnny_blaze`; snapshot `prevId` chains to 0006. `npm run
+  db:migrate` applied clean to `devbrowse`; `migrateTestDb` picks 0007 up for the
+  test DB automatically.
+- RED→GREEN: test written first → FAIL `Cannot find package
+  '@/server/db/schema/product'`; added the schema module → 3/3 pass.
+- Tests: `npm test` → 25 files / 75 passed, run twice, stable (was 24/72; +1
+  file, +3 tests). `npx tsc --noEmit` clean. `npm run lint` clean.
+- Deviations: none. YAGNI — exactly the 3 brief tables, no extra columns. No
+  corner cut → no new PONYTAIL-DEBT row (the `product_prices.mrp` snapshot debt
+  row is a later task per the brief).
