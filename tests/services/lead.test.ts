@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import { migrateTestDb, resetDb } from '../helpers/db';
+import { eq } from 'drizzle-orm';
+import { migrateTestDb, resetDb, testDb } from '../helpers/db';
 import { seedBase } from '@/server/db/seed';
-import { createLead, updateLead, rescoreLead, listLeads } from '@/server/services/lead';
+import { createLead, updateLead, rescoreLead, listLeads, getLead, redactLead } from '@/server/services/lead';
+import { stripFinancial } from '@/server/auth/permissions';
+import { distributorLeads } from '@/server/db/schema/crm';
 import type { AppUser } from '@/server/auth/session';
 
 const owner = (orgId: string): AppUser => ({ id: 'o', email: 'o', name: 'O', role: 'OWNER', employeeId: null, orgId });
@@ -58,6 +61,25 @@ describe('lead service', () => {
     await updateLead(owner(orgId), beta.id, { businessName: 'Beta Mart' });
     expect((await listLeads(orgId, { q: 'beta' })).map((l) => l.businessName)).toEqual(['Beta Mart']);
     expect(await listLeads(orgId, { stage: 'CONTACTED' })).toHaveLength(0);
+  });
+
+  it('getLead does not return a soft-deleted lead', async () => {
+    const { orgId } = await seedBase();
+    const lead = await createLead(owner(orgId), { businessName: 'Gone Co', contactPerson: 'Gita', phone: '9444444444' });
+    expect(await getLead(orgId, lead.id)).not.toBeNull();
+    await testDb.update(distributorLeads).set({ deletedAt: new Date() }).where(eq(distributorLeads.id, lead.id));
+    expect(await getLead(orgId, lead.id)).toBeNull();
+  });
+
+  it('redactLead is a no-op today (LEAD_FINANCIAL_FIELDS empty) but the wired path strips for SALES', async () => {
+    const { orgId } = await seedBase();
+    const s = sales(orgId, crypto.randomUUID());
+    const lead = await createLead(owner(orgId), { businessName: 'Redact Co', contactPerson: 'Rhea', phone: '9555555555' });
+    expect(redactLead(s, lead)).toEqual(lead); // empty field list → unchanged
+
+    // proves the boundary works the moment a field name is added to the list
+    expect(stripFinancial(s, { a: 1, secret: 2 }, ['secret'])).toEqual({ a: 1 });
+    expect(stripFinancial(owner(orgId), { a: 1, secret: 2 }, ['secret'])).toEqual({ a: 1, secret: 2 });
   });
 
   it('forbids a sales rep from deleting', async () => {

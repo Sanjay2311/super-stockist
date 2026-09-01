@@ -126,7 +126,7 @@ export async function seedDemo(): Promise<void> {
         orgId,
         businessName: l.businessName,
         contactPerson: l.contact,
-        phone: `+91 98${45010000 + i}`,
+        phone: `9845${String(10000 + i).padStart(6, '0')}`, // valid 10-digit /^[6-9]\d{9}$/ → 9845010000…
         email: null,
         address: `${AREAS[l.area]}, Bangalore East`,
         territoryId: areaRows[l.area].id,

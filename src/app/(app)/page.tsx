@@ -14,7 +14,7 @@ export default async function DashboardPage() {
     user.role === 'SALES' && user.employeeId ? { assignedEmployeeId: user.employeeId } : {};
 
   const [leads, view] = await Promise.all([
-    listLeads(user.orgId, { limit: 500 }),
+    listLeads(user.orgId, { ...scope, limit: 500 }),
     getTodayView(user.orgId, scope),
   ]);
 

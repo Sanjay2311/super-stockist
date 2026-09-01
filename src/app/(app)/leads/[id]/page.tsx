@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { requireUser } from '@/server/auth/session';
-import { getLead } from '@/server/services/lead';
+import { getLead, redactLead } from '@/server/services/lead';
 import { listActivities } from '@/server/services/activity';
 import { GradeBadge } from '@/components/grade-badge';
 import { formatINR } from '@/domain/money';
@@ -25,8 +25,9 @@ const field = 'mt-1 block w-full rounded border px-2 py-1 text-sm';
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
-  const lead = await getLead(user.orgId, id);
-  if (!lead) notFound();
+  const found = await getLead(user.orgId, id);
+  if (!found) notFound();
+  const lead = redactLead(user, found);
 
   const scoreInputs = (lead.scoreInputs ?? {}) as Record<string, number>;
   const timeline = await listActivities(user.orgId, id);

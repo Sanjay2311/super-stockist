@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requireUser } from '@/server/auth/session';
-import { listLeads } from '@/server/services/lead';
+import { listLeads, redactLeads } from '@/server/services/lead';
 import { GradeBadge } from '@/components/grade-badge';
 import { StageBadge } from '@/components/stage-badge';
 import { formatINR } from '@/domain/money';
@@ -9,7 +9,7 @@ import { createLeadAction } from './actions';
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const user = await requireUser();
   const { q } = await searchParams;
-  const leads = await listLeads(user.orgId, { q });
+  const leads = redactLeads(user, await listLeads(user.orgId, { q }));
   return (
     <main className="p-6 space-y-4">
       <h1 className="text-xl font-semibold">Leads</h1>

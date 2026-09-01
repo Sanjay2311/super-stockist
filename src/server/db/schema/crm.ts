@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, bigint, boolean, jsonb, timestamp, date, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, bigint, boolean, jsonb, timestamp, date, index, uniqueIndex } from 'drizzle-orm/pg-core';
 
 const ts = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -44,7 +44,11 @@ export const distributorLeads = pgTable('distributor_leads', {
   isDemo: boolean('is_demo').notNull().default(false),
   deletedAt,
   ...ts,
-});
+}, (t) => ({
+  orgStageIdx: index('leads_org_stage_idx').on(t.orgId, t.stage),
+  orgAssigneeIdx: index('leads_org_assignee_idx').on(t.orgId, t.assignedEmployeeId),
+  orgDeletedIdx: index('leads_org_deleted_idx').on(t.orgId, t.deletedAt),
+}));
 
 // ponytail: the `lead_id IS NOT NULL OR distributor_id IS NOT NULL` CHECK on
 // `activities` is hand-appended to drizzle/0003_*.sql — ceiling: `db:generate`
@@ -65,7 +69,10 @@ export const activities = pgTable('activities', {
   isDemo: boolean('is_demo').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   deletedAt,
-});
+}, (t) => ({
+  leadIdx: index('activities_lead_idx').on(t.leadId),
+  orgOccurredIdx: index('activities_org_occurred_idx').on(t.orgId, t.occurredAt),
+}));
 
 export const tasks = pgTable('tasks', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -85,7 +92,9 @@ export const tasks = pgTable('tasks', {
   isDemo: boolean('is_demo').notNull().default(false),
   deletedAt,
   ...ts,
-});
+}, (t) => ({
+  orgStatusDueIdx: index('tasks_org_status_due_idx').on(t.orgId, t.status, t.dueDate),
+}));
 
 export const employeeDailyReports = pgTable('employee_daily_reports', {
   id: uuid('id').primaryKey().defaultRandom(),

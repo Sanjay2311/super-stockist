@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
 
 export const auditLog = pgTable('audit_log', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -10,4 +10,6 @@ export const auditLog = pgTable('audit_log', {
   oldValues: jsonb('old_values'),
   newValues: jsonb('new_values'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  entityIdx: index('audit_entity_idx').on(t.entityType, t.entityId),
+}));
