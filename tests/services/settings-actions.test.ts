@@ -15,7 +15,7 @@ vi.mock('@/server/auth/session', async (orig) => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { requireUser } from '@/server/auth/session';
-import { saveScoreWeights, saveThresholds } from '@/app/(app)/settings/actions';
+import { saveScoreWeights, saveThresholds, savePricingBands } from '@/app/(app)/settings/actions';
 
 const owner = (orgId: string): AppUser => ({ id: 'o', email: 'o', name: 'O', role: 'OWNER', employeeId: null, orgId });
 const sales = (orgId: string): AppUser => ({ id: 's', email: 's', name: 'S', role: 'SALES', employeeId: null, orgId });
@@ -67,6 +67,21 @@ describe('saveScoreWeights', () => {
     expect(await getConfig(orgId, 'scoreWeights')).toEqual(CONFIG_DEFAULTS.scoreWeights);
   });
 
+  it('rejects an omitted or blank weight field — no silent 0 — and leaves config unchanged', async () => {
+    const { orgId } = await seedBase();
+    vi.mocked(requireUser).mockResolvedValue(owner(orgId));
+
+    const omitted = weightsForm(CONFIG_DEFAULTS.scoreWeights);
+    omitted.delete('geoCoverage');
+    expect(await saveScoreWeights(null, omitted)).toEqual({ error: 'weights must be numbers' });
+
+    const blank = weightsForm(CONFIG_DEFAULTS.scoreWeights);
+    blank.set('geoCoverage', '');
+    expect(await saveScoreWeights(null, blank)).toEqual({ error: 'weights must be numbers' });
+
+    expect(await getConfig(orgId, 'scoreWeights')).toEqual(CONFIG_DEFAULTS.scoreWeights);
+  });
+
   it('rejects weights that do not sum to 100 and leaves config unchanged', async () => {
     const { orgId } = await seedBase();
     vi.mocked(requireUser).mockResolvedValue(owner(orgId));
@@ -110,11 +125,86 @@ describe('saveThresholds', () => {
     expect(await getConfig(orgId, 'hotLeadProbabilityThreshold')).toBe(CONFIG_DEFAULTS.hotLeadProbabilityThreshold);
   });
 
+  it('rejects an omitted or blank threshold — no silent 0/60 — and leaves config unchanged', async () => {
+    const { orgId } = await seedBase();
+    vi.mocked(requireUser).mockResolvedValue(owner(orgId));
+
+    expect(await saveThresholds(null, new FormData())).toEqual({ error: 'threshold must be 0–100' });
+
+    const blank = new FormData();
+    blank.set('hotLeadProbabilityThreshold', '');
+    expect(await saveThresholds(null, blank)).toEqual({ error: 'threshold must be 0–100' });
+
+    expect(await getConfig(orgId, 'hotLeadProbabilityThreshold'))
+      .toBe(CONFIG_DEFAULTS.hotLeadProbabilityThreshold);
+  });
+
   it('lets assertCan reject a SALES caller', async () => {
     const { orgId } = await seedBase();
     vi.mocked(requireUser).mockResolvedValue(sales(orgId));
     const fd = new FormData();
     fd.set('hotLeadProbabilityThreshold', '55');
     await expect(saveThresholds(null, fd)).rejects.toThrow('forbidden');
+  });
+});
+
+const BAND_KEYS = [
+  'ssMinMarginPct', 'ssNormalMarginPct', 'ssTargetMarginPct',
+  'distributorMarginPct', 'retailerMarginPct', 'volatileFloorBufferPct',
+] as const;
+
+function bandsForm(b: Record<string, number>): FormData {
+  const fd = new FormData();
+  for (const k of BAND_KEYS) fd.set(k, String(b[k] ?? CONFIG_DEFAULTS.pricingBands[k]));
+  return fd;
+}
+
+describe('savePricingBands', () => {
+  it('persists valid bands and writes a config/pricingBands audit row', async () => {
+    const { orgId } = await seedBase();
+    vi.mocked(requireUser).mockResolvedValue(owner(orgId));
+    const bands = {
+      ssMinMarginPct: 9, ssNormalMarginPct: 13, ssTargetMarginPct: 19,
+      distributorMarginPct: 16, retailerMarginPct: 24, volatileFloorBufferPct: 14,
+    };
+
+    const res = await savePricingBands(null, bandsForm(bands));
+
+    expect(res).toEqual({ ok: true });
+    expect(await getConfig(orgId, 'pricingBands')).toEqual(bands);
+
+    const audit = await testDb.select().from(auditLog)
+      .where(and(eq(auditLog.entityType, 'config'), eq(auditLog.entityId, 'pricingBands')));
+    expect(audit).toHaveLength(1);
+    expect(audit[0].action).toBe('update');
+    expect(audit[0].oldValues).toEqual(CONFIG_DEFAULTS.pricingBands);
+    expect(audit[0].newValues).toEqual(bands);
+  });
+
+  it('rejects an omitted or blank band field — no silent 0 — and leaves config unchanged', async () => {
+    const { orgId } = await seedBase();
+    vi.mocked(requireUser).mockResolvedValue(owner(orgId));
+
+    const omitted = bandsForm(CONFIG_DEFAULTS.pricingBands);
+    omitted.delete('ssNormalMarginPct');
+    expect(await savePricingBands(null, omitted)).toEqual({ error: 'bands must be 0–100' });
+
+    const blank = bandsForm(CONFIG_DEFAULTS.pricingBands);
+    blank.set('ssNormalMarginPct', '');
+    expect(await savePricingBands(null, blank)).toEqual({ error: 'bands must be 0–100' });
+
+    expect(await getConfig(orgId, 'pricingBands')).toEqual(CONFIG_DEFAULTS.pricingBands);
+  });
+
+  it('rejects an out-of-range band and leaves config unchanged', async () => {
+    const { orgId } = await seedBase();
+    vi.mocked(requireUser).mockResolvedValue(owner(orgId));
+    const fd = bandsForm(CONFIG_DEFAULTS.pricingBands);
+    fd.set('retailerMarginPct', '250');
+
+    const res = await savePricingBands(null, fd);
+
+    expect(res).toEqual({ error: 'bands must be 0–100' });
+    expect(await getConfig(orgId, 'pricingBands')).toEqual(CONFIG_DEFAULTS.pricingBands);
   });
 });

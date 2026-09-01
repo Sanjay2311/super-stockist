@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { users, employees } from '@/server/db/schema/identity';
 import { seedBase } from '@/server/db/seed';
+import { seedCatalogue } from '@/server/db/seed-catalogue';
 import { createTerritory } from '@/server/services/territory';
 import { createLead, rescoreLead } from '@/server/services/lead';
 import { addActivity } from '@/server/services/activity';
@@ -78,7 +79,11 @@ async function main() {
     idx += 1;
   }
 
-  console.log('dev-seed: created dev@local (OWNER), 6 territories, 6 leads (5 with follow-ups). Set DEV_LOGIN_EMAIL=dev@local and run `npm run dev`.');
+  // Real F&F catalogue (184 SKUs) so `npm run dev` shows a populated Products screen.
+  // Idempotent: bails to {0,0} once the org already has the catalogue.
+  const cat = await seedCatalogue(orgId);
+
+  console.log(`dev-seed: created dev@local (OWNER), 6 territories, 6 leads (5 with follow-ups), catalogue ${JSON.stringify(cat)}. Set DEV_LOGIN_EMAIL=dev@local and run \`npm run dev\`.`);
   process.exit(0);
 }
 

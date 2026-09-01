@@ -908,3 +908,572 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   `npx tsc --noEmit` clean. `npm run lint` clean. `npm run build` succeeds.
 - PONYTAIL-DEBT: no I4–I8 debt row existed; added an M1-empty
   `LEAD_FINANCIAL_FIELDS` → "populate in M2" pointer row.
+
+## 2026-09-01 — M2a Task 1: F&F catalogue data file + typed loader
+- `scripts/gen-ff-catalogue.py` — reads `Super Stockist Price List .xlsx` with
+  stdlib only (`zipfile` + `xml.etree`, no openpyxl dep): unzips the xlsx,
+  resolves `sharedStrings.xml`, walks `sheet1.xml` rows into a 9-col grid,
+  section-headers switch category, jar categories (Dry Fruits/Seeds/Spices)
+  fan out to the 100/250/500/1000g pack columns, Flours = single 1kg KG row,
+  Other = free-text variation. Emits the catalogue JSON to stdout, SKU count to
+  stderr. Committed for reproducibility.
+- `data/ff-catalogue.json` — generated: `{ brand, gstInclusive:true,
+  gstPctByCategory, volatileNote, skus[184] }`. Per-category: Dry Fruits 32,
+  Seeds 40, Flours 17, Spices 92, Other 3 (matches the brief exactly). Almond
+  100g → currentPaise 10700 / mrpPaise 19300 / volatile true / Dry Fruits. The
+  41 `1kg` jar packs (unit G) have `mrpPaise: null` (no MRP column in the sheet).
+  Prices stored as integer paise (`round(rupees*100)`). Committed.
+- `src/server/db/ff-catalogue.ts` — `readFileSync(join(process.cwd(),'data',
+  'ff-catalogue.json'))` parsed + validated once at import by a zod v4 schema
+  (`z.enum` category/unit, `z.record(z.string(),z.number())` GST map,
+  `.nullable()` packGrams/mrpPaise). Exports `FF_CATALOGUE`, `CatalogueSku`,
+  `Catalogue` (both types `z.infer`'d from the schema).
+- `tests/server/ff-catalogue.test.ts` — 3 specs: 184 SKUs / integer positive
+  paise / 5 valid categories; Almond 100g row matches the sheet; every 1kg jar
+  pack has `mrpPaise === null`.
+- RED→GREEN: test written first, failed with `Cannot find package
+  '@/server/db/ff-catalogue'`; added the loader → 3/3 pass.
+- Tests: `npm test` → 24 files / 72 passed (was 23/69; +1 file, +3 tests).
+  `npx tsc --noEmit` clean. `npm run lint` clean.
+- Deviations: none. No corner cut → no PONYTAIL-DEBT row.
+
+## 2026-09-01 — M2a Task 2: categories / products / product_prices schema + migration 0007
+- `src/server/db/schema/product.ts` — 3 Drizzle tables, per-file `const ts`
+  (`created_at`/`updated_at`) pattern, `snake_case` cols / `camelCase` props:
+  - `categories` { id, org_id, name, parent_id (null), active (bool, def true),
+    deleted_at, ts }.
+  - `products` { id, org_id, brand_id (null), category_id (not null →
+    categories.id), sku_code, name, pack_label, pack_grams (null), unit (text,
+    def 'G'), mrp (bigint number, null), gst_pct (integer, def 5), shelf_life_days
+    (null), reorder_level / min_stock / max_stock / preferred_stock (integer, def
+    0), active (def true), volatile_price (def false), is_demo (def false),
+    deleted_at, ts }. Indexes: unique `products_org_sku_idx` (org_id, sku_code),
+    `products_org_cat_idx` (org_id, category_id), `products_org_active_idx`
+    (org_id, active).
+  - `product_prices` { id, org_id, product_id (not null → products.id), 4 NOT
+    NULL paise cols (ss_billing_price, distributor_price, floor_price,
+    target_price), retailer_price (null), mrp (null — snapshot copy, canonical
+    stays on products; PONYTAIL-DEBT row deferred to a later task per brief),
+    is_demo_assumption / manual_override (bool, def false), override_by (null),
+    override_at (null), effective_from (timestamptz, def now), ts }. Unique index
+    `product_prices_product_idx` (product_id) → 1:1.
+  - All paise cols `bigint(..., { mode: 'number' })`; `gst_pct` whole-percent
+    `integer`.
+- `src/server/db/schema/index.ts` — added `export * from './product';`.
+- `tests/services/product-schema.test.ts` — 3 specs (from the brief): insert
+  category + product (asserts defaulted `active`/`volatilePrice`/`unit`) + 1:1
+  price row (defaulted `manualOverride`/`isDemoAssumption`); second price row for
+  same product rejects (unique `product_prices_product_idx`); duplicate
+  `skuCode` per org rejects (unique `products_org_sku_idx`).
+- `drizzle/0007_cheerful_johnny_blaze.sql` + `drizzle/meta/0007_snapshot.json` +
+  `_journal.json` — `npm run db:generate`: 3 `CREATE TABLE`, 2 FKs
+  (`product_prices.product_id → products.id`, `products.category_id →
+  categories.id`), 4 indexes (2 unique + 2 plain). Journal idx 7, tag
+  `0007_cheerful_johnny_blaze`; snapshot `prevId` chains to 0006. `npm run
+  db:migrate` applied clean to `devbrowse`; `migrateTestDb` picks 0007 up for the
+  test DB automatically.
+- RED→GREEN: test written first → FAIL `Cannot find package
+  '@/server/db/schema/product'`; added the schema module → 3/3 pass.
+- Tests: `npm test` → 25 files / 75 passed, run twice, stable (was 24/72; +1
+  file, +3 tests). `npx tsc --noEmit` clean. `npm run lint` clean.
+- Deviations: none. YAGNI — exactly the 3 brief tables, no extra columns. No
+  corner cut → no new PONYTAIL-DEBT row (the `product_prices.mrp` snapshot debt
+  row is a later task per the brief).
+
+## 2026-09-01 — M2a Task 4: Pricing calculator domain (`src/domain/pricing.ts`)
+- `src/domain/pricing.ts` — pure function `computePricing(input: PricingInput):
+  PricingResult`. No DB / framework imports; `import type { Paise } from
+  './money'` only. Exports: `PricingInput`, `PricingResult`, `computePricing`.
+  - `productCostPaise = ssBillingPrice` (landed cost of goods only).
+  - `grossMarginPaise = sellingPrice - productCostPaise`; `grossMarginPct =
+    part/whole*100`, 0 when `sellingPrice === 0`.
+  - `netContributionPaise = grossMarginPaise - Σ(freight, scheme, loading,
+    salesIncentive, samples, other)` (each `?? 0`) — variable costs are
+    below-gross per spec §28 waterfall (the authority), so they do NOT touch
+    `grossMargin`; §5.2's "product cost = ssBillingPrice + freight" phrasing is
+    superseded to avoid double-counting (controller ruling R3).
+  - `maxPermissibleDiscountPaise = Math.max(0, sellingPrice - floorPrice)`;
+    `belowFloor = sellingPrice < floorPrice`.
+  - `taxable`: when `gstInclusive`, `Math.round(amount / (1 + gstPct/100))` for
+    both `sellingExGst` and `ssCostExGst`; when not inclusive, both equal the
+    inclusive value.
+  - `waterfall = { mrp, retailerPrice: retailerPrice ?? null, distributorPrice:
+    sellingPrice, ssPrice: ssBillingPrice, ssCost: productCostPaise }`.
+  - Computes and flags only — never mutates or recommends a price.
+- `tests/domain/pricing.test.ts` — 6 specs (verbatim from the brief), Almond 100g
+  anchor: cost 10700p, MRP 19300p, selling 11984p, floor 11556p, 12% GST incl →
+  grossMargin 1284p (10.714%), maxDiscount 428p, `sellingExGst = round(11984/1.12)
+  = 10700`, `ssCostExGst = round(10700/1.12) = 9554`. Covers: no variable costs;
+  variable costs hit net only; ex-GST back-out; below-floor flag + discount clamp
+  (grossMargin 300p at selling 11000p); waterfall with retailerPrice 13782p;
+  `gstInclusive:false` → taxable === inclusive.
+- RED→GREEN: test written first → FAIL `Cannot find package '@/domain/pricing'`;
+  added the module → 6/6 pass.
+- Tests: `npm test` → 26 files / 81 passed, run twice, stable (was 25/75; +1
+  file, +6 tests). `npx tsc --noEmit` clean. `npm run lint` clean.
+- Deviations: none — Step 3 code implemented exactly as the brief specifies.
+  YAGNI — exactly the 3 exports listed. No corner cut → no new PONYTAIL-DEBT row.
+
+## 2026-09-01 — M2a Task 5: Price recommendation engine (`src/domain/pricing-recommend.ts`)
+- `src/domain/pricing-recommend.ts` — NEW pure module. `import type { Paise }
+  from './money'` only; no DB / framework. Exports: `PricingBands`,
+  `RecommendInput`, `RecommendResult`, `recommendPricing`. Private helpers
+  `markup` / `rupees` / `marginPct` (local string building only — no `Intl`).
+  - `floorPrice = round(cost * (1 + (volatile ? volatileFloorBufferPct :
+    ssMinMarginPct)/100))`; `distributorPrice` / `targetPrice` off `cost` with
+    `ssNormalMarginPct` / `ssTargetMarginPct`; `retailerPrice = round(
+    distributorPrice * (1 + distributorMarginPct/100))` (PTR).
+  - `mrpSuggestion = mrp == null ? round(retailerPrice * (1 +
+    retailerMarginPct/100)) : null`.
+  - `rationale[]` one entry per recommended field, plain English; floor `why`
+    says "volatile-commodity buffer" and names volatility when `volatile`.
+    Chain sanity: when `mrp != null` and `(mrp - retailerPrice)/retailerPrice*100
+    < retailerMarginPct`, push `{ field: 'mrpCheck', valuePaise: mrp, why: '...
+    only supports R% retailer margin ...' }`.
+  - `marginAtEach.{floorPct,distributorPct,targetPct} = (price - cost)/cost*100`
+    (0 when `cost === 0`). Recommends only — never mutates.
+- `tests/domain/pricing-recommend.test.ts` — 4 specs (verbatim from the brief).
+  Almond §5.3 anchor (cost 10700p, MRP 19300p, non-volatile): floor 11556p,
+  distributor 11984p, target 12626p, retailer `round(11984*1.15)` = 13782p,
+  `mrpSuggestion` null, marginAtEach 8 / 12 / 18%; MRP↔retailer headroom ~40% ≥
+  25% → no `mrpCheck`. Volatile (cost 10000p): floor `10000*1.12` = 11200p (not
+  1.08), floor `why` matches /volatile/i. MRP-suggest (cost 10000p, mrp null):
+  retailer `round(round(10000*1.12)*1.15)` = 12880p, `mrpSuggestion`
+  `round(12880*1.25)` = 16100p. mrpCheck (cost 10000p, mrp 13000p): retailer
+  12880p, headroom ~0.9% < 25% → flag with /only supports/i.
+- RED→GREEN: test written first → FAIL `Cannot find package
+  '@/domain/pricing-recommend'`; added the module → 4/4 pass.
+- Tests: `npm test` → 27 files / 85 passed, run twice, stable (was 26/81; +1
+  file, +4 tests). `npx tsc --noEmit` clean. `npm run lint` clean.
+- Deviations: none — Step 3 code implemented exactly as the brief specifies. No
+  Task 3 `PricingBands` stub was present (Task 3 runs after this); this task
+  creates the full module. YAGNI — exactly the 4 exports listed. No corner cut →
+  no new PONYTAIL-DEBT row.
+
+## 2026-09-01 — M2a Task 3: Pricing config bands (`CONFIG_DEFAULTS` + `bandsForCategory`)
+- `src/server/services/config.ts` — added `import type { PricingBands } from
+  '@/domain/pricing-recommend'` (Task 5 already shipped that module; no stub
+  needed). Three new keys on `CONFIG_DEFAULTS`:
+  - `pricingBands` = `{ ssMinMarginPct: 8, ssNormalMarginPct: 12,
+    ssTargetMarginPct: 18, distributorMarginPct: 15, retailerMarginPct: 25,
+    volatileFloorBufferPct: 12 }` — bare object literal (no inner `as` cast);
+    the outer `satisfies` clause gained `pricingBands: PricingBands` and
+    type-checks completeness.
+  - `pricingBandsByCategory` = `{} as Record<string, Partial<PricingBands>>`
+    (cast widens the empty literal; `satisfies` gained the matching Record type).
+  - `pricesGstInclusive` = `true` (`satisfies` gained `pricesGstInclusive:
+    boolean`).
+  - `ConfigShape`/`ConfigKey` are `typeof`-derived, so the new keys flow through
+    `getConfig<K>` / `setConfig<K>` automatically — no signature changes.
+  - `bandsForCategory(orgId, categoryName: string | null): Promise<PricingBands>`
+    — `getConfig('pricingBands')` as base; null category returns base; otherwise
+    spreads `getConfig('pricingBandsByCategory')[categoryName] ?? {}` on top.
+- `tests/services/config.test.ts` — +2 specs (verbatim from the brief): default
+  bands + `pricesGstInclusive` + `setConfig` round-trip; `bandsForCategory`
+  per-category merge (override wins on one key, base fills the rest; unknown
+  category → exact base bands).
+- RED→GREEN: tests first → FAIL (`bandsForCategory is not a function`,
+  `pricesGstInclusive` undefined); extended `CONFIG_DEFAULTS` + added helper →
+  4/4 pass.
+- `satisfies` completeness sanity check: temporarily dropped
+  `distributorMarginPct` from the `pricingBands` literal → `tsc` errored
+  `TS2741: Property 'distributorMarginPct' is missing ... in type 'PricingBands'`
+  at the `satisfies` position (line 20) — completeness enforced. Reverted.
+- Tests: `npm test` → 27 files / 87 passed, run twice, stable (was 27/85; same
+  file count, +2 specs). `npx tsc --noEmit` clean. `npm run lint` clean.
+- Deviations: `pricingBands` left as a bare literal rather than the brief's
+  `as PricingBands` (per the M1-review note that an inner cast can defeat the
+  `satisfies` completeness check) — behaviour identical, completeness now
+  verified. YAGNI — exactly the 3 keys + the one helper. No corner cut → no new
+  PONYTAIL-DEBT row.
+
+## 2026-09-01 — M2a Task 6: Permissions + product service (list / get / update / prices / recommend / redaction)
+- `src/server/auth/permissions.ts` — `Action` union + `OWNER_ACTIONS` gain
+  `product.view` / `product.edit` / `pricing.recommend`; `SALES_ACTIONS` gains
+  only `product.view`.
+- `src/lib/schemas.ts` — appended `PRODUCT_UNITS = ['G','KG','ML','L','PCS']` and
+  `productSchema` (zod v4): `name` 2–160; `unit` enum(PRODUCT_UNITS); `gstPct`
+  int 0–28; `active` / `volatilePrice` bool; `shelfLifeDays` / `reorderLevel` /
+  `minStock` / `maxStock` / `preferredStock` int ≥ 0; `mrp` int ≥ 0 nullable
+  (paise). All fields `.optional()` (this task only updates). Territory/lead/etc
+  exports untouched.
+- `src/server/services/product.ts` (new) — every export from the brief:
+  `ProductRow` / `ProductPriceRow` / `ProductWithPrice`;
+  `PRODUCT_FINANCIAL_FIELDS = ['ssBillingPrice','floorPrice','targetPrice']`;
+  `redactPrice` (null passthrough → `stripFinancial`), `redactProduct`
+  (`{ ...row, price: redactPrice(...) }`), `redactProducts`; `listCategories`
+  (active, not-deleted, name asc); `listProducts` (LEFT JOIN prices + categories,
+  `isNull(deletedAt)`, `q` ILIKE name/skuCode, `activeOnly`, name asc, default
+  limit 100 — returns FULL rows, caller redacts); `getProduct` (org-scoped,
+  not-deleted); `updateProduct` (`assertCan('product.edit')`, org-scoped `before`
+  → `'not found'`, `patchOnly`, `writeAudit('product',id,'update')`);
+  `updatePrices` (`assertCan('product.edit')`, org-scoped price row →
+  `'not found'`, every provided value a finite int ≥ 0 else `'invalid price'`,
+  `null` allowed only for `retailerPrice`/`mrp`, sets `manualOverride: true` +
+  `overrideBy`/`overrideAt`/`updatedAt`, `writeAudit('product_price',…,'override')`);
+  `computeFor` (loads product+price+category, `getConfig('pricesGstInclusive')`,
+  `bandsForCategory`, `computePricing` + `recommendPricing` both fed the
+  product's real `gstPct`; `null` if product or price row missing);
+  `resetToRecommended` (`assertCan('pricing.recommend')`, `recommendPricing`,
+  writes distributor/floor/target/retailer + `manualOverride:false`,
+  `isDemoAssumption:false`; fills `products.mrp` from `mrpSuggestion` ONLY when it
+  was null; `writeAudit('product_price',…,'reset_to_recommended')`);
+  `regenerateAllRecommended` (`assertCan('pricing.recommend')`, one query for all
+  `{product,price,categoryName}` triples via INNER JOIN, optional
+  `manualOverride === false` filter, plain per-row `db.update` loop — no bulk CTE,
+  never touches a set MRP, ONE summary `writeAudit('config','regenerate_prices',
+  'regenerate_prices', null, { updated, onlyUnoverridden })`).
+  `type ProductInput = z.input<typeof productSchema>` is local to this file.
+- `src/server/db/schema/product.ts` + `drizzle/0008_product_price_override_by_text.sql`
+  (+ journal / snapshot via `drizzle-kit generate`) — **`product_prices.override_by`
+  changed `uuid` → `text`.** The brief's verbatim service test seeds actors with
+  `id: 'u-owner'` / `'u-sales'` and asserts `updated.overrideBy === 'u-owner'`;
+  a uuid column rejects that. Mirrors the existing `audit_log.user_id` /
+  `tasks.created_by` convention (see `drizzle/0004_task_created_by_text.sql`) —
+  system/test actors need not be uuids. Root-cause fix, not a test hack.
+- `tests/domain/permissions.test.ts` — +1 spec `gates product actions by role`
+  (verbatim from brief). RED: `can(owner,'product.view')` false → GREEN after the
+  matrix edit. 4/4.
+- `tests/services/product.test.ts` (new) — brief's 6 specs verbatim + 1 added
+  (`getProduct` org-scoped / soft-delete, mirrors `lead.test.ts` and removes an
+  unused-import lint warning since the brief's specs don't call `getProduct`).
+  RED: `@/server/services/product` not found. After implementation + the
+  `override_by` migration: 7/7 (10/10 including `product-schema.test.ts` in the
+  same glob).
+- `redactProduct` behaviour: SALES → `price` is a shallow copy minus
+  `ssBillingPrice`/`floorPrice`/`targetPrice` (keeps `distributorPrice`,
+  `retailerPrice`, `mrp`, …); OWNER → `stripFinancial` returns the same `price`
+  ref untouched. `price === null` passes straight through.
+- Audit rows: `updateProduct` → `('product', id, 'update')`; `updatePrices` →
+  `('product_price', productId, 'override')`; `resetToRecommended` →
+  `('product_price', productId, 'reset_to_recommended')`;
+  `regenerateAllRecommended` → exactly ONE `('config', 'regenerate_prices',
+  'regenerate_prices')` with `newValues = { updated, onlyUnoverridden }`.
+- Tests: `npm test` → 28 files / 95 passed, run twice, stable (was 28/94-ish;
+  +1 permissions spec, +7 product specs, product-schema already counted).
+  `npx tsc --noEmit` clean (one iteration: `set[f] = null` on a
+  `Partial<ProductPriceRow>` union key — fixed by narrowing `f` to
+  `'retailerPrice' | 'mrp'` inline instead of a `Set.has` check).
+  `npm run lint` clean.
+- Deviations: (1) `override_by` uuid→text + migration 0008 (justified above);
+  (2) `productSchema` includes `unit` (not in the brief's field list) so the
+  exported `PRODUCT_UNITS` has a real consumer and form posts of `unit` are
+  validated; (3) `regenerateAllRecommended`'s `writeAudit` passes `entityId` and
+  `action` both `'regenerate_prices'` (the brief's 5-arg shorthand collapsed the
+  duplicate; both columns are `NOT NULL`); (4) +1 `getProduct` test as noted.
+  `computeFor`/`resetToRecommended`/`regenerate` read MRP from `products.mrp`
+  (the catalogue MRP for the waterfall), not the `product_prices.mrp` snapshot.
+- Shortcut: `bandsForCategory` is called once per row in
+  `regenerateAllRecommended` (2 config reads per product) — see PONYTAIL-DEBT.
+
+## 2026-09-01 — Task 7: F&F catalogue seed (`seedCatalogue`)
+- `src/server/db/seed-catalogue.ts` (new) — `seedCatalogue(orgId?)` loads the real
+  184-SKU F&F catalogue as `products` + `product_prices` for an org (resolves
+  `orgId` via `seedBase()` when omitted). Exported `slug()` helper: UPPERCASE →
+  collapse non-alphanumeric runs to `-` → trim edge dashes. `skuCode` =
+  `slug(category)-slug(product)-slug(packLabel)` (e.g. `DRY-FRUITS-ALMOND-100G`).
+  The category prefix is load-bearing: `Quinoa 1kg` exists in BOTH Seeds and
+  Flours and would otherwise collide on the `(orgId, skuCode)` unique index —
+  verified both `SEEDS-QUINOA-1KG` and `FLOURS-QUINOA-1KG` land. A `-2/-3/…`
+  suffix guard covers any future same-run collision.
+- Rows: `products` carries `isDemo: false` (real data), `gstPct` from
+  `FF_CATALOGUE.gstPctByCategory[category]`, `volatilePrice`, `mrp`, `unit`,
+  `packGrams`, `packLabel`, `categoryId`; stock columns left at defaults.
+  `product_prices`: `ssBillingPrice = currentPaise`, band-derived
+  `floor/distributor/target/retailer` from
+  `recommendPricing({ …, bands: CONFIG_DEFAULTS.pricingBands })`, `mrp = mrpPaise`,
+  `isDemoAssumption: true`, `manualOverride: false`.
+- Categories: upsert by `(orgId, name)` (select-then-insert — no unique index on
+  that pair), `active: true`. 5 categories.
+- Idempotent: fast-bails to `{ categories: 0, products: 0 }` once the org has ≥ 150
+  products; also per-SKU skip by existing `skuCode`. Returns the counts CREATED
+  this run.
+- CLI: `seed-catalogue.ts` guard `process.argv[1]?.endsWith('seed-catalogue.ts')`
+  → `seedBase().then(({orgId}) => seedCatalogue(orgId))`. `seed.ts`'s guard is
+  `endsWith('seed.ts')` and does NOT match `seed-catalogue.ts` (ends `catalogue.ts`)
+  — no collision. `package.json`: new `db:seed:catalogue` script. `seed.ts`'s
+  `db:seed` branch now runs `seedCatalogue(orgId)` after `seedDemo()`.
+- Files: `src/server/db/seed-catalogue.ts` (new), `src/server/db/seed.ts`
+  (import + `db:seed` CLI branch), `package.json` (script),
+  `tests/services/seed-catalogue.test.ts` (new).
+- TDD: RED — `npm test -- seed-catalogue` → `Cannot find package
+  '@/server/db/seed-catalogue'`. GREEN after implementation → 3/3.
+- Tests: full `npm test` → 29 files / 98 passed, run twice, stable. Real seed:
+  `DATABASE_URL=…/devbrowse npm run db:seed:catalogue` → `{ categories: 5,
+  products: 184 }`; 2nd run → `{ categories: 0, products: 0 }` (184/184 rows
+  unchanged). Spot-check `DRY-FRUITS-ALMOND-100G`: ss 10700, mrp 19300, gst 12,
+  volatile, floor 11984 > ss. `npx tsc --noEmit` clean, `npm run lint` clean.
+- Deviations: (1) test file — added a 5-row `categories` assertion to the first
+  spec so the brief's `categories` import is used (lint) and the category upsert
+  is actually covered; specs otherwise verbatim. (2) `seed.ts` non-purge CLI
+  branch restructured to `seedBase().then(async ({orgId}) => { await seedDemo();
+  await seedCatalogue(orgId); })` since `seedDemo()` returns void — needed `orgId`.
+- Shortcuts: none. Plain per-SKU loop (184 iterations, one-off seed), no faker,
+  no configurable size.
+
+## 2026-09-01 — Task 8: Products & Pricing screens + nav
+- Shipped the catalogue + per-SKU pricing UI. Files created:
+  `src/app/(app)/products/page.tsx` (list), `src/app/(app)/products/[id]/page.tsx`
+  (detail), `src/app/(app)/products/actions.ts`, `src/app/(app)/products/pricing-panel.tsx`
+  (`'use client'`), `tests/e2e/products.spec.ts` (`test.describe.skip`). Modified:
+  `src/components/app-nav.tsx` (nav item), `tests/domain/nav.test.ts` (+1 spec),
+  `docs/BUILD-LOG.md`, `docs/PONYTAIL-DEBT.md`.
+- List page (`/products`): server component, `requireUser` → `listProducts` +
+  `listCategories`, `redactProducts(user, rowsRaw)` at the read site, then
+  `showCost = user.role === 'OWNER'` gates the SS cost / Floor / Target `<th>`/`<td>`
+  (SALES sees Product / Category / MRP / Distributor only). q + category `<form>`
+  filter (GET to `/products`). OWNER-only `<details>` "Regenerate recommended
+  prices" wraps `regenerateAll` (the brief left this action unplaced; the all-SKUs
+  action belongs on the list, not a per-SKU screen). Empty state kept.
+- Detail page (`/products/[id]`): `computeFor(user.orgId, id)` → `notFound()` on
+  null; `redactProduct(user, data.product)`. Three areas: (1) Fields — editable
+  `<form action={saveProduct.bind(null, id)}>` (name / gstPct / volatilePrice /
+  active) when `can(user,'product.edit')`, else a read-only `<dl>`; (2)
+  `<PricingPanel>` recommended-vs-current table + override inputs; (3) price
+  waterfall table + margins. Cost-revealing rows/blocks (SS price, SS cost, gross
+  margin, net contribution, max permissible discount, belowFloor) are gated on
+  `showCost` — gross margin = selling − cost would otherwise let SALES back out
+  cost. "manual override" amber badge shown when `price.manualOverride`.
+- `actions.ts`: `savePrices(productId, formData)` builds a **partial** patch —
+  only `PRICE_FIELDS` present & non-empty in the FormData, each `rupees(Number(v))`
+  (rupee input → integer paise) — then `updatePrices(user, productId, patch)` +
+  `revalidatePath('/products/${productId}')`. `resetPrices` →
+  `resetToRecommended(user, productId)`. `regenerateAll` →
+  `regenerateAllRecommended(user, user.orgId, { onlyUnoverridden: fd.get('onlyUnoverridden') === 'on' })`
+  (orgId from `requireUser()`, never the form) + `revalidatePath('/', 'layout')`.
+  `saveProduct` guarded by `can(user,'product.edit')` → `updateProduct`. No `db`
+  import anywhere — all through `src/server/services/product.ts`.
+- `pricing-panel.tsx`: table Field | Recommended | Current | Override(₹, `step="0.01"`,
+  only when `canEdit`); rows for ss/floor/target hidden when the `current` value is
+  `undefined` (SALES). Override inputs sit in `<form action={savePrices}>` (start
+  empty, current shown as placeholder → only typed fields patch); "Reset to
+  recommended" is a separate `<form action={resetPrices}>`; the `recommend.rationale`
+  list renders only when `canEdit` (its distributor line prints "your gross ₹x/unit"
+  = distributorPrice − cost, a cost leak for SALES). `aria-label="<Field> override"`
+  so the e2e `getByLabel(/distributor price/i)` resolves.
+- Nav: `{ href: '/products', label: 'Products' }` after Territories, no `ownerOnly`
+  (SALES has `product.view`). `nav.test.ts` +1: `visibleNavItems` includes
+  `Products` for OWNER and SALES; the pre-existing "strict subset" spec still holds
+  (OWNER 9 / SALES 7).
+- Tests: `npm test` full — 29 files / 99 passed (was 98), run twice, stable.
+  `npm run e2e -- products` → 2 skipped. `npx tsc --noEmit` clean, `npm run lint`
+  clean, `npm run build` clean (`/products` + `/products/[id]` routes emitted).
+- Dev check (`npm run dev` :3000, dev OWNER): `/products` renders 184 rows with SS
+  cost / Floor / Target columns + the Regenerate `<details>`; Almond 100g detail
+  renders the recommended-vs-current table, the "Why these numbers" rationale, and
+  the price waterfall + Gross margin. Override flow driven through the underlying
+  services (server actions aren't curl-able): distributor 11984 → `savePrices(130)`
+  → 13000 (₹130.00) + `manualOverride=true` (amber "manual override" badge renders)
+  → `resetPrices` → back to band 11984, `manualOverride=false`.
+- Deviations: (1) list page passes `listProducts(..., { limit: 1000 })` — the
+  service default is 100 and the F&F catalogue is 184, so the brief's verbatim
+  no-limit call would truncate. No pagination added (YAGNI). (2) `regenerateAll`
+  wired as an OWNER-only `<details>` on the list page (brief defined the action but
+  not its UI home). (3) cost-derived rows in the waterfall/margins and the pricing
+  rationale list are gated for SALES (brief only spelled out the list-page column
+  gate + `redactProduct`); `computeFor` returns an un-redacted `PricingResult` /
+  `RecommendResult`, so the gate lives in the page/panel. (4) e2e `login()` helper
+  params typed (`page: Page`, strings) — the brief's untyped snippet fails
+  `tsc --noEmit` (repo type-checks `tests/`). Test bodies otherwise verbatim.
+- Shortcuts: none beyond the e2e skip (tracked in PONYTAIL-DEBT — row extended).
+
+### 2026-09-01 — Task 8 review fix (CRITICAL + minor)
+- CRITICAL: `src/app/(app)/products/[id]/page.tsx` passed the full un-redacted
+  `RecommendResult` (floorPrice / targetPrice / marginAtEach / mrpSuggestion +
+  the rationale whose distributor line prints "your gross ₹x/unit", back-solvable
+  to `ssBillingPrice`) into `<PricingPanel>` — a `'use client'` component — for
+  every role. The rows were painted-hidden for SALES but the values were still
+  serialized into the RSC/client payload (view-source / React DevTools readable),
+  and `/products/[id]` is reachable by SALES (`product.view` + Products nav).
+  Fix: mount `<PricingPanel>` ONLY when `can(user,'product.edit')` (OWNER). SALES
+  now gets a plain server-rendered table of the non-cost prices (MRP / retailer /
+  distributor) — no `recommend` object crosses any client boundary. The waterfall
+  + margins `<section>` (all rows below distributor are cost/margin) is now gated
+  as a whole on `showCost` (was per-row) so SALES doesn't see a near-empty dupe.
+  `PricingResult` (`data.pricing`) was already server-only behind `showCost` —
+  still is; it never reaches a client component.
+  Files: `src/app/(app)/products/[id]/page.tsx:100-197` (the two sections
+  rewritten; load-bearing comment added at the mount gate).
+- Minor: `saveProduct` in `src/app/(app)/products/actions.ts:44-66` no longer
+  sends `''`/`0` for blank inputs — blank text/number fields are omitted from the
+  patch (checkboxes stay explicit booleans), and the 4 fields are validated by
+  `productSchema.pick({name,gstPct,volatilePrice,active}).partial().parse(...)` in
+  the action (name length / gstPct 0–28 enforced server-side, not just via HTML
+  attrs + `updateProduct`'s zod).
+- Covering check: `tests/domain/permissions.test.ts` +1 pure spec —
+  `can(sales,'product.edit') === false` / `can(owner,'product.edit') === true`
+  named as the gate that withholds the pricing calculator + `RecommendResult`
+  from SALES (nav.test-style; the repo has no RSC render harness). Comment at the
+  mount site points back to it.
+- Verify: `npm test` full — 29 files / **100 passed** (was 99, +1), run twice,
+  stable. `npx tsc --noEmit` clean, `npm run lint` clean, `npm run build` clean.
+  `npm run e2e -- products` → 2 skipped. Dev (dev OWNER, :3000): `/products/[id]`
+  still shows the panel + rationale + waterfall + Gross margin; override
+  distributor 11984 → `savePrices(130)` → 13000 + `manualOverride=true` → reset →
+  11984 + `manualOverride=false`. `saveProduct` with a blank `gstPct` leaves the
+  stored value untouched (12 → 12).
+
+## 2026-09-01 — Task 9: Settings — editable pricing bands (audited) + regenerate
+
+- Shipped: OWNER-only "Pricing bands (%)" form on `/settings` — 6 labelled number
+  inputs (`ssMinMarginPct`, `ssNormalMarginPct`, `ssTargetMarginPct`,
+  `distributorMarginPct`, `retailerMarginPct`, `volatileFloorBufferPct`),
+  0–100 guard, one `config` / `pricingBands` / `update` audit row per save
+  (before + after). Plus a "Regenerate recommended prices" form (checkbox
+  "Only prices not manually set", default on) that reuses the existing
+  `regenerateAll` action from `products/actions.ts` — no second regenerate path.
+  Both blocks gated (`config.edit` / `pricing.recommend`, OWNER).
+- `savePricingBands(_prev, formData)` in `settings/actions.ts` mirrors
+  `saveScoreWeights` / `saveThresholds` exactly: `requireUser` →
+  `assertCan('config.edit')` → `Number(formData.get(k))` for the 6 `BAND_KEYS` →
+  `every(Number.isFinite && 0 ≤ v ≤ 100)` else `{ error: 'bands must be 0–100' }`
+  → `before = getConfig(...)` → `setConfig` → `writeAudit` → `revalidatePath` →
+  `{ ok: true }`.
+- Files: `src/app/(app)/settings/actions.ts` (+`savePricingBands`, `BAND_KEYS`),
+  `src/app/(app)/settings/forms.tsx` (bands `useActionState` form, `bands` prop),
+  `src/app/(app)/settings/page.tsx` (load `pricingBands`, render regenerate form),
+  `tests/services/settings-actions.test.ts` (+2 specs), `tests/e2e/settings.spec.ts`
+  (+1 skipped bands-persist spec).
+- TDD: added 2 failing specs (`savePricingBands is not a function`) → implemented →
+  green. Specs: valid bands persist + a single `config`/`pricingBands` audit row
+  with `action:'update'`, `oldValues` = defaults, `newValues` = new bands;
+  out-of-range (`retailerMarginPct=250`) → `{ error: 'bands must be 0–100' }`,
+  config unchanged.
+- Tests: `npm test` full — 29 files / **102 passed** (was 100, +2), run twice,
+  stable. `npx tsc --noEmit` clean, `npm run lint` clean, `npm run build` clean
+  (`/settings` 2 kB).
+- Dev check (dev OWNER, :3000, driven with a throwaway Playwright script):
+  `/settings` → set `ssTargetMarginPct` 18 → 20 → "Save pricing bands" → "Saved";
+  reload → field still 20; DB `app_config.pricingBands.ssTargetMarginPct = 20` +
+  `audit_log` row `config`/`pricingBands`/`update` old 18 → new 20. Then
+  "Regenerate recommended prices" (checkbox on) → non-overridden `Almond 100g`
+  `target_price` 12626 → 12840 (= round(cost 10700 × 1.20)), `manual_override`
+  still false. Reverted the dev config + regenerated at defaults afterwards
+  (12840 → 12626).
+- Deviations: (1) `savePricingBands` casts the parsed object
+  `as Record<(typeof BAND_KEYS)[number], number>` rather than the brief's
+  `as PricingBands` — TS rejects casting `{ [k: string]: number }` straight to the
+  `PricingBands` *interface* ("insufficient overlap"); the `Record` form is
+  structurally identical and assigns cleanly into `setConfig`'s `PricingBands`
+  param. (2) Bands inputs are uncontrolled (`defaultValue`), like the thresholds
+  form — no live-sum constraint applies to bands, so the controlled-state pattern
+  from the score-weights form isn't needed. (3) Added a matching `chromium-headless-shell`
+  Playwright build (`npx playwright install`) to run the visual check headless —
+  the checked-in e2e suite stays `describe.skip` (unchanged ceiling).
+- Shortcuts: none beyond the pre-existing e2e skip.
+
+## 2026-09-01 — M2a Task 10: dev-fixtures catalogue wiring + docs + M2a wrap
+
+- `scripts/dev-fixtures.ts` — after the dev-user / territories / leads block, one
+  new line `const cat = await seedCatalogue(orgId)` (import from
+  `@/server/db/seed-catalogue`); the final `console.log` now reports the catalogue
+  counts. `npm run dev:fixtures` alone now gives a browsable app *with products*.
+  `seedCatalogue` is idempotent (bails to `{0,0}` once the org has ≥ 150
+  products), so a re-run is a no-op. Note: the script still short-circuits at its
+  existing "`dev@local` already present — nothing to do" guard, so on an
+  already-fixtured DB the catalogue line is not reached — that path only matters
+  on a fresh DB, where the catalogue is loaded alongside the dev owner.
+- Docs: this Task 10 entry + the **Milestone 2a complete** line below;
+  `docs/PONYTAIL-DEBT.md` +4 rows (CSV import/export UI deferred to M3 §40; GST
+  slabs per category are best-guess defaults pending F&F; `product_prices.mrp`
+  snapshot vs `products.mrp`; volatile `floorPrice == distributorPrice` at the
+  default bands) — the `PRODUCT_FINANCIAL_FIELDS` 3-name row was already present
+  from Task 6, left as-is; `README.md` gains `npm run db:seed:catalogue` in
+  local-setup and a note that the catalogue is real F&F data with band-derived
+  `distributor/floor/target` prices flagged `is_demo_assumption`.
+- **Controller ruling R4:** the plan's Step 2 test
+  `tests/services/dev-fixtures-catalogue.test.ts` was NOT created — its only
+  assertion (184 products for the org) duplicates `tests/services/seed-catalogue.test.ts`.
+  No behaviour change in this task beyond the one-line wiring, which calls an
+  already-tested function; nothing new to gate.
+- Tests: `npm test` full → **29 files / 102 passed**, run twice, stable
+  (unchanged — this task adds no tests). `npx tsc --noEmit` clean, `npm run lint`
+  clean, `npm run build` clean (routes unchanged; `/products` 170 B).
+- Dev check: `npm run dev:fixtures` against `devbrowse` → "dev@local already
+  present" (catalogue already loaded by Task 7); `npm run dev` on :3000 →
+  `/products` `/settings` `/leads` `/pipeline` all 200, `/products` renders the
+  real SKUs (Almond/Cashew/Quinoa/Turmeric rows present).
+- Deviations: dev-fixtures catalogue line sits after the early-exit guard (per the
+  brief's "after the dev-user/leads block" instruction), so it is reached only on
+  a fresh DB. No corner cut beyond the 4 documented debt rows.
+
+## 2026-09-01 — Milestone 2a complete (Masters & Pricing)
+
+Shipped across M2a Tasks 1–10: the real **Farm & Farmers catalogue** as live data
+(`data/ff-catalogue.json` + typed loader; 184 SKUs, real Current/MRP, GST-inclusive)
+and an idempotent `seedCatalogue` (`npm run db:seed:catalogue`, wired into
+`db:seed` and `dev:fixtures`); the **product / price schema** — `categories`,
+`products`, `product_prices` (1:1, current values only, `is_demo_assumption` /
+`manual_override`) via migrations **0007** and **0008**; the **pricing calculator**
+(`src/domain/pricing.ts` — waterfall, net contribution, gross/contribution margin
+%, ex-GST taxable, max permissible discount, floor guard) and the
+**recommendation domain** (`src/domain/pricing-recommend.ts` — floor / distributor
+/ target / retailer + MRP suggestion + rationale + volatile buffer); the
+**product service** (`list` / `get` / `update` / `updatePrices` / `computeFor` /
+`resetToRecommended` / `regenerateAllRecommended`) with **SALES cost redaction**
+(`PRODUCT_FINANCIAL_FIELDS` + `redactProduct`) and audit on price/cost/band
+changes; the **Products & Pricing screens** (catalogue list, per-SKU calculator
+panel, recommended-vs-current with reset-to-recommended, nav entry for both roles);
+and **Settings** — editable pricing bands (audited) + regenerate-recommended-prices.
+Deferred to later milestones (each a PONYTAIL-DEBT row): CSV product import/export
+UI (M3 §40), MRP editing / `product_prices.mrp` sync (M2b/M3), per-category band
+editor UI, and the volatile-floor default revisit. Distributor Master, lead→
+distributor conversion, Quotations, price approval and Schemes are **Milestone 2b**.
+Tests: 29 files / 102 passed. `tsc` / `lint` / `build` clean.
+
+## 2026-09-01 — M2a final-review fixes (C1, C2, I1–I6)
+
+Pre-merge fix wave from the whole-branch review of Milestone 2a. Eight findings,
+one pass:
+
+- **C1** `regenerateAllRecommended` (`src/server/services/product.ts`): now ALWAYS
+  filters `manualOverride = false` (was conditional on `opts.onlyUnoverridden`);
+  writes ONE audit row carrying `oldValues:{count}` + `newValues:{updated,changes:[{productId,before:{4 prices},after:{4 prices}}]}`
+  instead of a summary with `oldValues:null`. `ponytail:` note added — the opt is
+  kept for a future force path once M3 per-price history lands.
+- **C2** `is_demo_assumption` direction (spec §11): `updatePrices` now sets
+  `isDemoAssumption:false` (owner entered a real figure); `resetToRecommended` and
+  `regenerateAllRecommended` set `isDemoAssumption:true` (a regenerated band value
+  IS an assumption) — `resetToRecommended` previously set it false.
+- **I1** `regenerateAllRecommended` org scope: dropped the `orgId` parameter; uses
+  `user.orgId`. Signature is now `regenerateAllRecommended(user, opts?)`. Call site
+  `src/app/(app)/products/actions.ts` → `regenerateAll()` (checkbox no longer read;
+  it is cosmetic now — see PONYTAIL-DEBT).
+- **I2/I3 (report I2)** SALES cost boundary: added `product.viewCost` Action
+  (OWNER only). `stripFinancial` gates on `can(user,'product.viewCost')` (was
+  `role !== 'SALES'` — failed open for any future non-SALES role). Both product
+  pages compute `showCost = can(user,'product.viewCost')` (was `role === 'OWNER'`).
+- **I3** settings actions (`src/app/(app)/settings/actions.ts`): new `numField`
+  helper — a blank (`''`) or omitted numeric field is a validation error, never a
+  silent `0` (or silent `60` for the threshold). Wired into `saveScoreWeights`,
+  `saveThresholds`, `savePricingBands`.
+- **I4** volatile floor buffer: `CONFIG_DEFAULTS.pricingBands.volatileFloorBufferPct`
+  `12 → 10` so the volatile floor sits below the distributor price. PONYTAIL-DEBT
+  row marked RESOLVED.
+- **I5** `updatePrices` cross-field price ordering: after building the patch,
+  asserts on the merged effective row — `ssBillingPrice <= floorPrice <= targetPrice`
+  and `floorPrice <= distributorPrice`, else throws.
+- **I6** `updatePrices` empty patch: `if (Object.keys(set).length === 0) return before;`
+  before stamping the override / writing an audit row.
+
+Files touched: `src/server/services/product.ts`, `src/server/services/config.ts`,
+`src/server/auth/permissions.ts`, `src/app/(app)/settings/actions.ts`,
+`src/app/(app)/products/actions.ts`, `src/app/(app)/products/page.tsx`,
+`src/app/(app)/products/[id]/page.tsx`; tests
+`tests/services/product.test.ts` (+3), `tests/services/settings-actions.test.ts` (+3),
+`tests/domain/pricing-recommend.test.ts` (+1), `tests/domain/permissions.test.ts` (extended).
+
+Tests: `npm test` full → **29 files / 109 passed**, run twice, stable (was 102).
+RED check: reverting `src/` to `c37c281` with the new tests in place → 8 failures
+across the 3 touched DB/domain test files (the pricing-recommend default-lock test
+passes standalone; I4's RED is the one-line `config.ts` diff). `npx tsc --noEmit`,
+`npm run lint`, `npm run build` all clean.
+Dev check (`npm run dev` :3000, devbrowse): `/products` + `/settings` → 200;
+Almond 100g via the real service path — override → `manual_override` f→t,
+`is_demo_assumption` stays false, distributor 11984→12484; reset → `manual_override`
+t→f, `is_demo_assumption` false→true, floor recomputed to 11770 (< distributor
+11984, I4 visible); empty patch → no override, no audit row (I6); an over-large
+floor patch throws (I5). psql confirms the persisted row + exactly the 2 expected
+audit rows.
+Shortcut: none beyond the two documented PONYTAIL-DEBT changes (I4 resolved; the
+regenerate always-skips-overrides ceiling, cleared by M3 per-price history).

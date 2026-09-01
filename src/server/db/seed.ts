@@ -7,6 +7,7 @@ import { scoreDistributor, type ScoreInputs, type ScoreWeights } from '@/domain/
 import { CONFIG_DEFAULTS } from '@/server/services/config';
 import { stageRank, type LeadStage } from '@/domain/pipeline';
 import { rupees } from '@/domain/money';
+import { seedCatalogue } from './seed-catalogue';
 
 const ORG_NAME = 'Bangalore East Super Stockist';
 const BRAND_NAME = 'Farm & Farmers';
@@ -204,7 +205,10 @@ export async function purgeDemo(orgId: string): Promise<void> {
 
 if (process.argv[1]?.endsWith('seed.ts')) {
   const purge = process.argv.includes('--purge');
-  (purge ? seedBase().then(({ orgId }) => purgeDemo(orgId)) : seedBase().then(seedDemo))
+  const run = purge
+    ? seedBase().then(({ orgId }) => purgeDemo(orgId))
+    : seedBase().then(async ({ orgId }) => { await seedDemo(); await seedCatalogue(orgId); });
+  run
     .then(() => { console.log(purge ? 'purge done' : 'seed done'); process.exit(0); })
     .catch((e) => { console.error(e); process.exit(1); });
 }
