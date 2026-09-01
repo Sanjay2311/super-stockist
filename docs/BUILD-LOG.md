@@ -1049,3 +1049,40 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   Task 3 `PricingBands` stub was present (Task 3 runs after this); this task
   creates the full module. YAGNI — exactly the 4 exports listed. No corner cut →
   no new PONYTAIL-DEBT row.
+
+## 2026-09-01 — M2a Task 3: Pricing config bands (`CONFIG_DEFAULTS` + `bandsForCategory`)
+- `src/server/services/config.ts` — added `import type { PricingBands } from
+  '@/domain/pricing-recommend'` (Task 5 already shipped that module; no stub
+  needed). Three new keys on `CONFIG_DEFAULTS`:
+  - `pricingBands` = `{ ssMinMarginPct: 8, ssNormalMarginPct: 12,
+    ssTargetMarginPct: 18, distributorMarginPct: 15, retailerMarginPct: 25,
+    volatileFloorBufferPct: 12 }` — bare object literal (no inner `as` cast);
+    the outer `satisfies` clause gained `pricingBands: PricingBands` and
+    type-checks completeness.
+  - `pricingBandsByCategory` = `{} as Record<string, Partial<PricingBands>>`
+    (cast widens the empty literal; `satisfies` gained the matching Record type).
+  - `pricesGstInclusive` = `true` (`satisfies` gained `pricesGstInclusive:
+    boolean`).
+  - `ConfigShape`/`ConfigKey` are `typeof`-derived, so the new keys flow through
+    `getConfig<K>` / `setConfig<K>` automatically — no signature changes.
+  - `bandsForCategory(orgId, categoryName: string | null): Promise<PricingBands>`
+    — `getConfig('pricingBands')` as base; null category returns base; otherwise
+    spreads `getConfig('pricingBandsByCategory')[categoryName] ?? {}` on top.
+- `tests/services/config.test.ts` — +2 specs (verbatim from the brief): default
+  bands + `pricesGstInclusive` + `setConfig` round-trip; `bandsForCategory`
+  per-category merge (override wins on one key, base fills the rest; unknown
+  category → exact base bands).
+- RED→GREEN: tests first → FAIL (`bandsForCategory is not a function`,
+  `pricesGstInclusive` undefined); extended `CONFIG_DEFAULTS` + added helper →
+  4/4 pass.
+- `satisfies` completeness sanity check: temporarily dropped
+  `distributorMarginPct` from the `pricingBands` literal → `tsc` errored
+  `TS2741: Property 'distributorMarginPct' is missing ... in type 'PricingBands'`
+  at the `satisfies` position (line 20) — completeness enforced. Reverted.
+- Tests: `npm test` → 27 files / 87 passed, run twice, stable (was 27/85; same
+  file count, +2 specs). `npx tsc --noEmit` clean. `npm run lint` clean.
+- Deviations: `pricingBands` left as a bare literal rather than the brief's
+  `as PricingBands` (per the M1-review note that an inner cast can defeat the
+  `satisfies` completeness check) — behaviour identical, completeness now
+  verified. YAGNI — exactly the 3 keys + the one helper. No corner cut → no new
+  PONYTAIL-DEBT row.

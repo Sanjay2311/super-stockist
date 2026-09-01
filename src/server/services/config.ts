@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { appConfig } from '@/server/db/schema/config';
 import type { LeadStage } from '@/domain/pipeline';
+import type { PricingBands } from '@/domain/pricing-recommend';
 
 export const CONFIG_DEFAULTS = {
   scoreWeights: {
@@ -16,12 +17,21 @@ export const CONFIG_DEFAULTS = {
   hotLeadProbabilityThreshold: 60,
   staleQuotationDays: 5,
   reorderCadenceDays: 21,
+  pricingBands: {
+    ssMinMarginPct: 8, ssNormalMarginPct: 12, ssTargetMarginPct: 18,
+    distributorMarginPct: 15, retailerMarginPct: 25, volatileFloorBufferPct: 12,
+  },
+  pricingBandsByCategory: {} as Record<string, Partial<PricingBands>>,
+  pricesGstInclusive: true,
 } satisfies {
   scoreWeights: Record<string, number>;
   stageProbability: Record<LeadStage, number>;
   hotLeadProbabilityThreshold: number;
   staleQuotationDays: number;
   reorderCadenceDays: number;
+  pricingBands: PricingBands;
+  pricingBandsByCategory: Record<string, Partial<PricingBands>>;
+  pricesGstInclusive: boolean;
 };
 
 export type ConfigShape = typeof CONFIG_DEFAULTS;
@@ -36,4 +46,11 @@ export async function getConfig<K extends ConfigKey>(orgId: string, key: K): Pro
 export async function setConfig<K extends ConfigKey>(orgId: string, key: K, value: ConfigShape[K]): Promise<void> {
   await db.insert(appConfig).values({ orgId, key, value })
     .onConflictDoUpdate({ target: [appConfig.orgId, appConfig.key], set: { value, updatedAt: new Date() } });
+}
+
+export async function bandsForCategory(orgId: string, categoryName: string | null): Promise<PricingBands> {
+  const base = await getConfig(orgId, 'pricingBands');
+  if (!categoryName) return base;
+  const overrides = await getConfig(orgId, 'pricingBandsByCategory');
+  return { ...base, ...(overrides[categoryName] ?? {}) };
 }
