@@ -116,22 +116,49 @@ export async function updatePrices(user: AppUser, productId: string, patch: Pric
   // I6: an empty patch is a no-op — don't stamp a manual override or write a no-op audit row.
   if (Object.keys(set).length === 0) return before;
 
-  // I5: cross-field price ordering on the merged effective row (all 4 checked columns
-  // are NOT NULL, so the merge always has them).
-  const eff = { ...before, ...set };
-  if (eff.ssBillingPrice > eff.floorPrice) throw new Error('floor below cost');
-  if (eff.floorPrice > eff.targetPrice) throw new Error('floor above target');
-  if (eff.floorPrice > eff.distributorPrice) throw new Error('floor above distributor');
+  // The cost drives every downstream price. When it changes, recompute floor/distributor/
+  // target/retailer from the bands rather than accepting stale sibling values from the same
+  // submit (the "Save prices" form only sends the field(s) actually typed into) — a hand-typed
+  // distributor/floor/target in the SAME submit as a cost change is discarded in favour of the
+  // recomputed value; resubmit that field on its own afterwards to override it.
+  const costChanged = 'ssBillingPrice' in set && set.ssBillingPrice !== before.ssBillingPrice;
+
+  if (costChanged) {
+    const full = await getProduct(user.orgId, productId);
+    if (!full) throw new Error('not found');
+    const bands = await bandsForCategory(user.orgId, full.categoryName);
+    const effectiveMrp = 'mrp' in set ? (set.mrp ?? null) : full.mrp;
+    const rec = recommendPricing({
+      ssBillingPrice: set.ssBillingPrice!,
+      mrp: effectiveMrp,
+      gstPct: full.gstPct,
+      volatile: full.volatilePrice,
+      bands,
+    });
+    set.distributorPrice = rec.distributorPrice;
+    set.floorPrice = rec.floorPrice;
+    set.targetPrice = rec.targetPrice;
+    set.retailerPrice = rec.retailerPrice;
+  } else {
+    // I5: cross-field price ordering on the merged effective row (all 4 checked columns
+    // are NOT NULL, so the merge always has them). Only applies to a manual override —
+    // a cost-driven recompute is trusted output of recommendPricing (bands are non-decreasing
+    // ss-min <= ss-normal <= ss-target by construction, so ordering always holds).
+    const eff = { ...before, ...set };
+    if (eff.ssBillingPrice > eff.floorPrice) throw new Error('floor below cost');
+    if (eff.floorPrice > eff.targetPrice) throw new Error('floor above target');
+    if (eff.floorPrice > eff.distributorPrice) throw new Error('floor above distributor');
+  }
 
   const [row] = await db.update(productPrices).set({
     ...set,
-    manualOverride: true,
+    manualOverride: !costChanged,
     overrideBy: user.id,
     overrideAt: new Date(),
-    isDemoAssumption: false,
+    isDemoAssumption: costChanged,
     updatedAt: new Date(),
   }).where(eq(productPrices.id, before.id)).returning();
-  await writeAudit(user, 'product_price', productId, 'override', before, row);
+  await writeAudit(user, 'product_price', productId, costChanged ? 'cost_update_recompute' : 'override', before, row);
   return row;
 }
 

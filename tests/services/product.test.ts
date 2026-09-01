@@ -116,6 +116,42 @@ describe('product service', () => {
     expect(audits.length).toBe(0);
   });
 
+  it('updatePrices cascades: changing SS billing price recomputes floor/distributor/target/retailer from the bands', async () => {
+    const { orgId } = await seedBase();
+    const { product } = await seedOneSku(orgId);
+    // Only the cost field is submitted — this used to throw 'floor below cost' because the
+    // new cost (12000) exceeds the OLD floor (11556) while the other four stayed stale.
+    const updated = await updatePrices(owner(orgId), product.id, { ssBillingPrice: 12000 });
+    expect(updated.ssBillingPrice).toBe(12000);
+    expect(updated.floorPrice).toBe(12960);        // 12000 * 1.08
+    expect(updated.distributorPrice).toBe(13440);  // 12000 * 1.12
+    expect(updated.targetPrice).toBe(14160);        // 12000 * 1.18
+    expect(updated.retailerPrice).toBe(15456);      // 13440 * 1.15
+    expect(updated.manualOverride).toBe(false);     // these four are band-derived, not hand-set
+    expect(updated.isDemoAssumption).toBe(true);
+    const audits = await testDb.select().from(auditLog).where(eq(auditLog.entityType, 'product_price'));
+    expect(audits).toHaveLength(1);
+    expect(audits[0].action).toBe('cost_update_recompute');
+  });
+
+  it('updatePrices cascade also lowers prices when cost drops, and never trips the ordering guard', async () => {
+    const { orgId } = await seedBase();
+    const { product } = await seedOneSku(orgId);
+    const updated = await updatePrices(owner(orgId), product.id, { ssBillingPrice: 9000 });
+    expect(updated.floorPrice).toBe(9720);          // 9000 * 1.08
+    expect(updated.distributorPrice).toBe(10080);   // 9000 * 1.12
+    expect(updated.floorPrice).toBeLessThan(updated.distributorPrice);
+  });
+
+  it('editing a non-cost field alone still behaves as a manual override (unaffected by the cascade)', async () => {
+    const { orgId } = await seedBase();
+    const { product } = await seedOneSku(orgId);
+    const updated = await updatePrices(owner(orgId), product.id, { distributorPrice: 12500 });
+    expect(updated.ssBillingPrice).toBe(10700);     // untouched
+    expect(updated.distributorPrice).toBe(12500);
+    expect(updated.manualOverride).toBe(true);
+  });
+
   it('regenerateAllRecommended can skip manually-overridden rows', async () => {
     const { orgId } = await seedBase();
     const a = await seedOneSku(orgId);
