@@ -1,6 +1,7 @@
-import { and, eq, isNull, asc } from 'drizzle-orm';
+import { and, eq, isNull, asc, inArray } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { territories } from '@/server/db/schema/territory';
+import { distributors } from '@/server/db/schema/distributor';
 import { territorySchema, type TerritoryInput } from '@/lib/schemas';
 import { patchOnly } from '@/lib/patch';
 import { assertCan } from '@/server/auth/permissions';
@@ -88,15 +89,30 @@ export async function updateTerritory(
   return row;
 }
 
-// ponytail: exclusivity conflict detection needs the distributors table, which
-// does not exist until Milestone 2. Stub returns false so callers compile now;
-// real exclusivity check lands in M2 with the distributors table.
-/* eslint-disable @typescript-eslint/no-unused-vars */
+// spec §13: a territory clashes when another ACTIVE exclusive distributor holds a
+// territory that equals, contains (ancestor), or sits under (descendant) the target.
+const EXCLUSIVE_BLOCKING_STATUSES = ['APPROVED', 'ACTIVE'] as const;
+
 export async function overlapsExclusive(
   orgId: string,
   territoryId: string,
   excludeDistributorId?: string,
 ): Promise<boolean> {
-  return false;
+  const [anc, desc] = await Promise.all([
+    ancestorIds(orgId, territoryId),
+    descendantIds(orgId, territoryId),
+  ]);
+  const scope = new Set<string>([territoryId, ...anc, ...desc]);
+  const rows = await db
+    .select({ id: distributors.id, territoryId: distributors.territoryId })
+    .from(distributors)
+    .where(and(
+      eq(distributors.orgId, orgId),
+      isNull(distributors.deletedAt),
+      eq(distributors.exclusive, true),
+      inArray(distributors.status, [...EXCLUSIVE_BLOCKING_STATUSES]),
+    ));
+  return rows.some(
+    (d) => d.territoryId != null && scope.has(d.territoryId) && d.id !== excludeDistributorId,
+  );
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */

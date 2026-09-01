@@ -4,4 +4,5 @@ export * from './config';
 export * from './audit';
 export * from './territory';
 export * from './crm';
+export * from './distributor';
 export * from './product';
