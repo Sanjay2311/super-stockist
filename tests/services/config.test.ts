@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { migrateTestDb, resetDb } from '../helpers/db';
 import { seedBase } from '@/server/db/seed';
 import { getConfig, setConfig, CONFIG_DEFAULTS, bandsForCategory } from '@/server/services/config';
+import { recommendPricing } from '@/domain/pricing-recommend';
 
 beforeAll(migrateTestDb);
 beforeEach(resetDb);
@@ -26,6 +27,17 @@ describe('config service', () => {
     const bands = { ...CONFIG_DEFAULTS.pricingBands, ssTargetMarginPct: 20 };
     await setConfig(orgId, 'pricingBands', bands);
     expect(await getConfig(orgId, 'pricingBands')).toEqual(bands);
+  });
+
+  it('the shipped default bands leave a volatile SKU floor strictly below its distributor price', () => {
+    // Guards the real CONFIG_DEFAULTS.pricingBands (not a hand-mirrored copy): if
+    // volatileFloorBufferPct ever creeps up to ssNormalMarginPct again, the volatile
+    // floor collapses onto the distributor price and this fails.
+    const r = recommendPricing({
+      ssBillingPrice: 10000, mrp: null, gstPct: 12, volatile: true,
+      bands: CONFIG_DEFAULTS.pricingBands,
+    });
+    expect(r.floorPrice).toBeLessThan(r.distributorPrice);
   });
 
   it('bandsForCategory merges a per-category override onto the global bands', async () => {
