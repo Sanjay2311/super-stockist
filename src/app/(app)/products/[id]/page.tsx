@@ -19,7 +19,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const { pricing, recommend } = data;
   const w = pricing.waterfall;
   const canEdit = can(user, 'product.edit');
-  const showCost = user.role === 'OWNER';
+  const showCost = can(user, 'product.viewCost');
 
   return (
     <main className="max-w-3xl space-y-6 p-6">

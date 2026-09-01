@@ -22,9 +22,11 @@ describe('permissions', () => {
   it('gates product actions by role', () => {
     expect(can(owner, 'product.view')).toBe(true);
     expect(can(owner, 'product.edit')).toBe(true);
+    expect(can(owner, 'product.viewCost')).toBe(true);
     expect(can(owner, 'pricing.recommend')).toBe(true);
     expect(can(sales, 'product.view')).toBe(true);
     expect(can(sales, 'product.edit')).toBe(false);
+    expect(can(sales, 'product.viewCost')).toBe(false);
     expect(can(sales, 'pricing.recommend')).toBe(false);
   });
 

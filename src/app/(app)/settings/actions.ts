@@ -18,13 +18,22 @@ const BAND_KEYS = [
   'distributorMarginPct', 'retailerMarginPct', 'volatileFloorBufferPct',
 ] as const;
 
+// A blank ('') or omitted (null) numeric field is a validation failure — never a silent 0.
+function numField(fd: FormData, k: string): number | null {
+  const v = fd.get(k);
+  if (v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 export async function saveScoreWeights(_prev: unknown, formData: FormData) {
   const user = await requireUser();
   assertCan(user, 'config.edit');
-  const weights = Object.fromEntries(
-    WEIGHT_KEYS.map((k) => [k, Number(formData.get(k) ?? 0)]),
-  ) as ScoreWeights;
-  if (!WEIGHT_KEYS.every((k) => Number.isFinite(weights[k]))) return { error: 'weights must be numbers' };
+  const raw = Object.fromEntries(
+    WEIGHT_KEYS.map((k) => [k, numField(formData, k)] as [string, number | null]),
+  );
+  if (WEIGHT_KEYS.some((k) => raw[k] === null)) return { error: 'weights must be numbers' };
+  const weights = raw as ScoreWeights;
   try {
     assertWeightsValid(weights);
   } catch (e) {
@@ -40,8 +49,8 @@ export async function saveScoreWeights(_prev: unknown, formData: FormData) {
 export async function saveThresholds(_prev: unknown, formData: FormData) {
   const user = await requireUser();
   assertCan(user, 'config.edit');
-  const n = Number(formData.get('hotLeadProbabilityThreshold') ?? 60);
-  if (!Number.isInteger(n) || n < 0 || n > 100) return { error: 'threshold must be 0–100' };
+  const n = numField(formData, 'hotLeadProbabilityThreshold');
+  if (n === null || !Number.isInteger(n) || n < 0 || n > 100) return { error: 'threshold must be 0–100' };
   const before = await getConfig(user.orgId, 'hotLeadProbabilityThreshold');
   await setConfig(user.orgId, 'hotLeadProbabilityThreshold', n);
   await writeAudit(user, 'config', 'hotLeadProbabilityThreshold', 'update', before, n);
@@ -52,10 +61,12 @@ export async function saveThresholds(_prev: unknown, formData: FormData) {
 export async function savePricingBands(_prev: unknown, formData: FormData) {
   const user = await requireUser();
   assertCan(user, 'config.edit');
-  const bands = Object.fromEntries(
-    BAND_KEYS.map((k) => [k, Number(formData.get(k))]),
-  ) as Record<(typeof BAND_KEYS)[number], number>;
-  if (!BAND_KEYS.every((k) => Number.isFinite(bands[k]) && bands[k] >= 0 && bands[k] <= 100)) {
+  const raw = Object.fromEntries(
+    BAND_KEYS.map((k) => [k, numField(formData, k)] as [string, number | null]),
+  );
+  if (BAND_KEYS.some((k) => raw[k] === null)) return { error: 'bands must be 0–100' };
+  const bands = raw as Record<(typeof BAND_KEYS)[number], number>;
+  if (!BAND_KEYS.every((k) => bands[k] >= 0 && bands[k] <= 100)) {
     return { error: 'bands must be 0–100' };
   }
   const before = await getConfig(user.orgId, 'pricingBands');

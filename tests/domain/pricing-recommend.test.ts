@@ -30,6 +30,18 @@ describe('recommendPricing', () => {
     expect(r.rationale.find((x) => x.field === 'floorPrice')!.why).toMatch(/volatile/i);
   });
 
+  it('the shipped default bands keep a volatile floor below the distributor price', () => {
+    // Mirrors CONFIG_DEFAULTS.pricingBands with volatileFloorBufferPct: 10 (was 12,
+    // which collapsed the volatile floor onto the distributor price).
+    const defaults: PricingBands = {
+      ssMinMarginPct: 8, ssNormalMarginPct: 12, ssTargetMarginPct: 18,
+      distributorMarginPct: 15, retailerMarginPct: 25, volatileFloorBufferPct: 10,
+    };
+    const r = recommendPricing({ ssBillingPrice: 10000, mrp: null, gstPct: 12, volatile: true, bands: defaults });
+    expect(r.floorPrice).toBe(11000);          // 10000 * 1.10, strictly below...
+    expect(r.floorPrice).toBeLessThan(r.distributorPrice); // ...the 10000 * 1.12 distributor price
+  });
+
   it('suggests an MRP when none is given', () => {
     const r = recommendPricing({ ssBillingPrice: 10000, mrp: null, gstPct: 5, volatile: false, bands });
     const expectedRetailer = Math.round(Math.round(10000 * 1.12) * 1.15);

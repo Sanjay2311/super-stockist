@@ -31,11 +31,11 @@ export async function resetPrices(productId: string) {
   revalidatePath(`/products/${productId}`);
 }
 
-export async function regenerateAll(formData: FormData) {
+export async function regenerateAll() {
   const user = await requireUser();
-  await regenerateAllRecommended(user, user.orgId, {
-    onlyUnoverridden: formData.get('onlyUnoverridden') === 'on',
-  });
+  // The "only where not manually overridden" checkbox is cosmetic now — regenerate always
+  // skips manual overrides (see regenerateAllRecommended / docs/PONYTAIL-DEBT.md).
+  await regenerateAllRecommended(user, { onlyUnoverridden: true });
   revalidatePath('/', 'layout');
 }
 

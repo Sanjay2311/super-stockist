@@ -19,7 +19,9 @@ export const CONFIG_DEFAULTS = {
   reorderCadenceDays: 21,
   pricingBands: {
     ssMinMarginPct: 8, ssNormalMarginPct: 12, ssTargetMarginPct: 18,
-    distributorMarginPct: 15, retailerMarginPct: 25, volatileFloorBufferPct: 12,
+    // ponytail: spec §5.3 parenthetical said "e.g. 12%" but 12 == ssNormalMarginPct
+    // collapses the volatile floor onto the distributor price (no headroom below it).
+    distributorMarginPct: 15, retailerMarginPct: 25, volatileFloorBufferPct: 10,
   },
   pricingBandsByCategory: {} as Record<string, Partial<PricingBands>>,
   pricesGstInclusive: true,

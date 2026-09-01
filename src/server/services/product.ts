@@ -113,11 +113,22 @@ export async function updatePrices(user: AppUser, productId: string, patch: Pric
     set[f] = v;
   }
 
+  // I6: an empty patch is a no-op — don't stamp a manual override or write a no-op audit row.
+  if (Object.keys(set).length === 0) return before;
+
+  // I5: cross-field price ordering on the merged effective row (all 4 checked columns
+  // are NOT NULL, so the merge always has them).
+  const eff = { ...before, ...set };
+  if (eff.ssBillingPrice > eff.floorPrice) throw new Error('floor below cost');
+  if (eff.floorPrice > eff.targetPrice) throw new Error('floor above target');
+  if (eff.floorPrice > eff.distributorPrice) throw new Error('floor above distributor');
+
   const [row] = await db.update(productPrices).set({
     ...set,
     manualOverride: true,
     overrideBy: user.id,
     overrideAt: new Date(),
+    isDemoAssumption: false,
     updatedAt: new Date(),
   }).where(eq(productPrices.id, before.id)).returning();
   await writeAudit(user, 'product_price', productId, 'override', before, row);
@@ -172,7 +183,7 @@ export async function resetToRecommended(user: AppUser, productId: string): Prom
     targetPrice: rec.targetPrice,
     retailerPrice: rec.retailerPrice,
     manualOverride: false,
-    isDemoAssumption: false,
+    isDemoAssumption: true,
     overrideBy: user.id,
     overrideAt: new Date(),
     updatedAt: new Date(),
@@ -186,23 +197,34 @@ export async function resetToRecommended(user: AppUser, productId: string): Prom
 }
 
 /** Recompute recommended distributor/floor/target/retailer for every non-deleted product
- *  with a price row (optionally only where `manualOverride === false`). Never touches a set
- *  MRP. Writes ONE summary audit row — not per product (YAGNI). */
+ *  whose price row is NOT a manual override. Never touches a set MRP. Writes ONE audit row
+ *  carrying the before/after of the 4 prices on every row it rewrote (§38).
+ *  ponytail: always skips manual overrides until per-price history exists (M3); the opt is
+ *  kept for a future force path (see docs/PONYTAIL-DEBT.md + docs/BUILD-LOG.md). */
 export async function regenerateAllRecommended(
-  user: AppUser, orgId: string, opts: { onlyUnoverridden?: boolean } = {},
+  user: AppUser, opts: { onlyUnoverridden?: boolean } = {},
 ): Promise<{ updated: number }> {
   assertCan(user, 'pricing.recommend');
-  const conds = [eq(products.orgId, orgId), isNull(products.deletedAt)];
-  if (opts.onlyUnoverridden) conds.push(eq(productPrices.manualOverride, false));
+  void opts.onlyUnoverridden; // accepted but ignored — the manualOverride filter below is unconditional
+  const conds = [
+    eq(products.orgId, user.orgId),
+    isNull(products.deletedAt),
+    eq(productPrices.manualOverride, false),
+  ];
   const rows = await db.select(withPrice).from(products)
     .innerJoin(productPrices, eq(productPrices.productId, products.id))
     .leftJoin(categories, eq(categories.id, products.categoryId))
     .where(and(...conds));
 
   let updated = 0;
+  const changes: {
+    productId: string;
+    before: { distributorPrice: number; floorPrice: number; targetPrice: number; retailerPrice: number | null };
+    after: { distributorPrice: number; floorPrice: number; targetPrice: number; retailerPrice: number };
+  }[] = [];
   for (const r of rows) {
     const price = r.price!;
-    const bands = await bandsForCategory(orgId, r.categoryName);
+    const bands = await bandsForCategory(user.orgId, r.categoryName);
     const rec = recommendPricing({
       ssBillingPrice: price.ssBillingPrice,
       mrp: r.product.mrp,
@@ -215,15 +237,27 @@ export async function regenerateAllRecommended(
       floorPrice: rec.floorPrice,
       targetPrice: rec.targetPrice,
       retailerPrice: rec.retailerPrice,
+      isDemoAssumption: true,
       updatedAt: new Date(),
     }).where(eq(productPrices.id, price.id));
     if (r.product.mrp == null && rec.mrpSuggestion != null) {
       await db.update(products).set({ mrp: rec.mrpSuggestion, updatedAt: new Date() })
         .where(eq(products.id, r.product.id));
     }
+    changes.push({
+      productId: r.product.id,
+      before: {
+        distributorPrice: price.distributorPrice, floorPrice: price.floorPrice,
+        targetPrice: price.targetPrice, retailerPrice: price.retailerPrice,
+      },
+      after: {
+        distributorPrice: rec.distributorPrice, floorPrice: rec.floorPrice,
+        targetPrice: rec.targetPrice, retailerPrice: rec.retailerPrice,
+      },
+    });
     updated++;
   }
-  await writeAudit(user, 'config', 'regenerate_prices', 'regenerate_prices', null,
-    { updated, onlyUnoverridden: opts.onlyUnoverridden ?? false });
+  await writeAudit(user, 'config', 'regenerate_prices', 'regenerate_prices',
+    { count: rows.length }, { updated, changes });
   return { updated };
 }

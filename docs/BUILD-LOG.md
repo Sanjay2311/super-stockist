@@ -1420,3 +1420,60 @@ UI (M3 §40), MRP editing / `product_prices.mrp` sync (M2b/M3), per-category ban
 editor UI, and the volatile-floor default revisit. Distributor Master, lead→
 distributor conversion, Quotations, price approval and Schemes are **Milestone 2b**.
 Tests: 29 files / 102 passed. `tsc` / `lint` / `build` clean.
+
+## 2026-09-01 — M2a final-review fixes (C1, C2, I1–I6)
+
+Pre-merge fix wave from the whole-branch review of Milestone 2a. Eight findings,
+one pass:
+
+- **C1** `regenerateAllRecommended` (`src/server/services/product.ts`): now ALWAYS
+  filters `manualOverride = false` (was conditional on `opts.onlyUnoverridden`);
+  writes ONE audit row carrying `oldValues:{count}` + `newValues:{updated,changes:[{productId,before:{4 prices},after:{4 prices}}]}`
+  instead of a summary with `oldValues:null`. `ponytail:` note added — the opt is
+  kept for a future force path once M3 per-price history lands.
+- **C2** `is_demo_assumption` direction (spec §11): `updatePrices` now sets
+  `isDemoAssumption:false` (owner entered a real figure); `resetToRecommended` and
+  `regenerateAllRecommended` set `isDemoAssumption:true` (a regenerated band value
+  IS an assumption) — `resetToRecommended` previously set it false.
+- **I1** `regenerateAllRecommended` org scope: dropped the `orgId` parameter; uses
+  `user.orgId`. Signature is now `regenerateAllRecommended(user, opts?)`. Call site
+  `src/app/(app)/products/actions.ts` → `regenerateAll()` (checkbox no longer read;
+  it is cosmetic now — see PONYTAIL-DEBT).
+- **I2/I3 (report I2)** SALES cost boundary: added `product.viewCost` Action
+  (OWNER only). `stripFinancial` gates on `can(user,'product.viewCost')` (was
+  `role !== 'SALES'` — failed open for any future non-SALES role). Both product
+  pages compute `showCost = can(user,'product.viewCost')` (was `role === 'OWNER'`).
+- **I3** settings actions (`src/app/(app)/settings/actions.ts`): new `numField`
+  helper — a blank (`''`) or omitted numeric field is a validation error, never a
+  silent `0` (or silent `60` for the threshold). Wired into `saveScoreWeights`,
+  `saveThresholds`, `savePricingBands`.
+- **I4** volatile floor buffer: `CONFIG_DEFAULTS.pricingBands.volatileFloorBufferPct`
+  `12 → 10` so the volatile floor sits below the distributor price. PONYTAIL-DEBT
+  row marked RESOLVED.
+- **I5** `updatePrices` cross-field price ordering: after building the patch,
+  asserts on the merged effective row — `ssBillingPrice <= floorPrice <= targetPrice`
+  and `floorPrice <= distributorPrice`, else throws.
+- **I6** `updatePrices` empty patch: `if (Object.keys(set).length === 0) return before;`
+  before stamping the override / writing an audit row.
+
+Files touched: `src/server/services/product.ts`, `src/server/services/config.ts`,
+`src/server/auth/permissions.ts`, `src/app/(app)/settings/actions.ts`,
+`src/app/(app)/products/actions.ts`, `src/app/(app)/products/page.tsx`,
+`src/app/(app)/products/[id]/page.tsx`; tests
+`tests/services/product.test.ts` (+3), `tests/services/settings-actions.test.ts` (+3),
+`tests/domain/pricing-recommend.test.ts` (+1), `tests/domain/permissions.test.ts` (extended).
+
+Tests: `npm test` full → **29 files / 109 passed**, run twice, stable (was 102).
+RED check: reverting `src/` to `c37c281` with the new tests in place → 8 failures
+across the 3 touched DB/domain test files (the pricing-recommend default-lock test
+passes standalone; I4's RED is the one-line `config.ts` diff). `npx tsc --noEmit`,
+`npm run lint`, `npm run build` all clean.
+Dev check (`npm run dev` :3000, devbrowse): `/products` + `/settings` → 200;
+Almond 100g via the real service path — override → `manual_override` f→t,
+`is_demo_assumption` stays false, distributor 11984→12484; reset → `manual_override`
+t→f, `is_demo_assumption` false→true, floor recomputed to 11770 (< distributor
+11984, I4 visible); empty patch → no override, no audit row (I6); an over-large
+floor patch throws (I5). psql confirms the persisted row + exactly the 2 expected
+audit rows.
+Shortcut: none beyond the two documented PONYTAIL-DEBT changes (I4 resolved; the
+regenerate always-skips-overrides ceiling, cleared by M3 per-price history).

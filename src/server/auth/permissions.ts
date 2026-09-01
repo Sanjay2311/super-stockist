@@ -6,7 +6,7 @@ export type Action =
   | 'task.create' | 'task.update' | 'task.complete'
   | 'dailyReport.submit' | 'dailyReport.viewAll'
   | 'territory.view' | 'territory.edit'
-  | 'product.view' | 'product.edit' | 'pricing.recommend'
+  | 'product.view' | 'product.edit' | 'product.viewCost' | 'pricing.recommend'
   | 'config.view' | 'config.edit'
   | 'employee.manage'
   | 'dashboard.view';
@@ -16,7 +16,7 @@ const OWNER_ACTIONS: Action[] = [
   'activity.create', 'task.create', 'task.update', 'task.complete',
   'dailyReport.submit', 'dailyReport.viewAll',
   'territory.view', 'territory.edit',
-  'product.view', 'product.edit', 'pricing.recommend',
+  'product.view', 'product.edit', 'product.viewCost', 'pricing.recommend',
   'config.view', 'config.edit',
   'employee.manage', 'dashboard.view',
 ];
@@ -43,7 +43,7 @@ export function assertCan(user: AppUser, action: Action): void {
 export function stripFinancial<T extends Record<string, unknown>>(
   user: AppUser, row: T, fields: (keyof T)[],
 ): T {
-  if (user.role !== 'SALES') return row;
+  if (can(user, 'product.viewCost')) return row;
   const copy = { ...row };
   for (const f of fields) delete copy[f];
   return copy;

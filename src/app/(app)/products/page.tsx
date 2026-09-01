@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireUser } from '@/server/auth/session';
 import { listProducts, listCategories, redactProducts } from '@/server/services/product';
+import { can } from '@/server/auth/permissions';
 import { formatINR } from '@/domain/money';
 import { regenerateAll } from './actions';
 
@@ -16,7 +17,7 @@ export default async function ProductsPage({
     listProducts(user.orgId, { q, categoryId: cat, limit: 1000 }),
   ]);
   const rows = redactProducts(user, rowsRaw);
-  const showCost = user.role === 'OWNER';
+  const showCost = can(user, 'product.viewCost');
 
   return (
     <main className="p-6 space-y-4">

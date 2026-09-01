@@ -87,6 +87,35 @@ describe('product service', () => {
     expect(reset.manualOverride).toBe(false);
   });
 
+  it('updatePrices clears is_demo_assumption; resetToRecommended sets it back (spec §11)', async () => {
+    const { orgId } = await seedBase();
+    const { product } = await seedOneSku(orgId, { isDemoAssumption: true });
+    const updated = await updatePrices(owner(orgId), product.id, { distributorPrice: 12500 });
+    expect(updated.isDemoAssumption).toBe(false);      // owner entered a real figure
+    const reset = await resetToRecommended(owner(orgId), product.id);
+    expect(reset.isDemoAssumption).toBe(true);         // a regenerated band value IS an assumption
+  });
+
+  it('updatePrices rejects a cross-field price-ordering violation (I5)', async () => {
+    const { orgId } = await seedBase();
+    const { product } = await seedOneSku(orgId);
+    // floor 12000 > distributor 11984
+    await expect(updatePrices(owner(orgId), product.id, { floorPrice: 12000 }))
+      .rejects.toThrow('floor above distributor');
+    const ok = await updatePrices(owner(orgId), product.id, { floorPrice: 11600 });
+    expect(ok.floorPrice).toBe(11600);                 // a valid patch still succeeds
+  });
+
+  it('updatePrices with an empty patch is a no-op — no override, no audit (I6)', async () => {
+    const { orgId } = await seedBase();
+    const { product } = await seedOneSku(orgId);
+    const res = await updatePrices(owner(orgId), product.id, {});
+    expect(res.manualOverride).toBe(false);
+    expect(res.distributorPrice).toBe(11984);
+    const audits = await testDb.select().from(auditLog).where(eq(auditLog.entityType, 'product_price'));
+    expect(audits.length).toBe(0);
+  });
+
   it('regenerateAllRecommended can skip manually-overridden rows', async () => {
     const { orgId } = await seedBase();
     const a = await seedOneSku(orgId);
@@ -100,11 +129,25 @@ describe('product service', () => {
     });
     await testDb.update(productPrices).set({ distributorPrice: 88888 }).where(eq(productPrices.productId, a.product.id));
 
-    const res = await regenerateAllRecommended(owner(orgId), orgId, { onlyUnoverridden: true });
+    const res = await regenerateAllRecommended(owner(orgId), { onlyUnoverridden: true });
     expect(res.updated).toBe(1);
     const [pr1] = await testDb.select().from(productPrices).where(eq(productPrices.productId, a.product.id));
     const [pr2] = await testDb.select().from(productPrices).where(eq(productPrices.productId, p2.id));
     expect(pr1.distributorPrice).toBe(11984);        // regenerated
-    expect(pr2.distributorPrice).toBe(90000);        // left alone (overridden)
+    expect(pr1.isDemoAssumption).toBe(true);         // regenerated band value is an assumption (C2)
+    expect(pr2.distributorPrice).toBe(90000);        // left alone (overridden — always skipped)
+
+    // C1: one audit row carrying before/after of every rewritten price row
+    const [audit] = await testDb.select().from(auditLog).where(eq(auditLog.entityId, 'regenerate_prices'));
+    expect(audit.oldValues).toEqual({ count: 1 });
+    const nv = audit.newValues as {
+      updated: number;
+      changes: { productId: string; before: { distributorPrice: number }; after: { distributorPrice: number } }[];
+    };
+    expect(nv.updated).toBe(1);
+    expect(nv.changes).toHaveLength(1);
+    expect(nv.changes[0].productId).toBe(a.product.id);
+    expect(nv.changes[0].before.distributorPrice).toBe(88888);   // hand-set value captured
+    expect(nv.changes[0].after.distributorPrice).toBe(11984);
   });
 });
