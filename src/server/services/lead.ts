@@ -1,6 +1,6 @@
 import { and, desc, eq, ilike, isNull, or } from 'drizzle-orm';
 import { db } from '@/server/db/client';
-import { distributorLeads } from '@/server/db/schema/crm';
+import { distributorLeads, activities } from '@/server/db/schema/crm';
 import { leadSchema, scoreInputsSchema } from '@/lib/schemas';
 import { assertCan } from '@/server/auth/permissions';
 import { getConfig } from './config';
@@ -59,6 +59,42 @@ export async function rescoreLead(user: AppUser, id: string, scoreInputs: unknow
     .set({ scoreInputs: inputs, score, grade, updatedAt: new Date() })
     .where(eq(distributorLeads.id, id)).returning();
   await writeAudit(user, 'lead', id, 'rescore', { score: before.score, grade: before.grade }, { score, grade });
+  return row;
+}
+
+export async function setStage(
+  user: AppUser,
+  id: string,
+  stage: LeadStage,
+  opts: { probability?: number; lostReason?: string; lostNotes?: string; onHoldReason?: string } = {},
+): Promise<LeadRow> {
+  assertCan(user, 'lead.setStage');
+  if (stage === 'LOST' && !opts.lostReason) throw new Error('lostReason required');
+  const [before] = await db.select().from(distributorLeads)
+    .where(and(eq(distributorLeads.id, id), eq(distributorLeads.orgId, user.orgId)));
+  if (!before) throw new Error('not found');
+  const probMap = await getConfig(user.orgId, 'stageProbability');
+  const probability = opts.probability ?? probMap[stage];
+  const [row] = await db.update(distributorLeads).set({
+    stage,
+    probability,
+    lostReason: stage === 'LOST' ? opts.lostReason ?? null : null,
+    lostNotes: stage === 'LOST' ? opts.lostNotes ?? null : null,
+    onHoldReason: stage === 'ON_HOLD' ? opts.onHoldReason ?? null : null,
+    updatedAt: new Date(),
+  }).where(eq(distributorLeads.id, id)).returning();
+  // ponytail: this timeline insert duplicates Task 14's addActivity — Task 14
+  // refactors setStage to call addActivity. Logged in PONYTAIL-DEBT.
+  await db.insert(activities).values({
+    orgId: user.orgId,
+    leadId: id,
+    employeeId: user.employeeId,
+    type: 'OTHER',
+    occurredAt: new Date(),
+    outcome: `Stage: ${before.stage} → ${stage}`,
+  });
+  await writeAudit(user, 'lead', id, 'setStage',
+    { stage: before.stage, probability: before.probability }, { stage, probability });
   return row;
 }
 

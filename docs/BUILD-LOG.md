@@ -367,3 +367,48 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   regex. (3) exported a local `LeadInput` from `lead.ts` instead of importing the
   output-typed alias from `@/lib/schemas` (no schema file touched).
 - Shortcuts: none with a ceiling — no new PONYTAIL-DEBT.
+
+## 2026-09-01 — Task 13: Lead detail — fields, score panel, stage change
+
+- Shipped `setStage(user, id, stage, opts?)` in `src/server/services/lead.ts`:
+  `assertCan('lead.setStage')`; throws `Error('lostReason required')` when
+  `stage === 'LOST'` and no `lostReason`; org-scoped load-or-404 for the
+  before-image; `probability = opts.probability ?? getConfig(orgId,'stageProbability')[stage]`;
+  updates `stage`/`probability` and sets `lostReason`/`lostNotes` only for LOST,
+  `onHoldReason` only for ON_HOLD (else null); inserts a timeline `activities` row
+  inline (`type: 'OTHER'`, `outcome: 'Stage: <from> → <to>'`); audited `setStage`
+  with `{stage,probability}` before→after.
+- `src/app/(app)/leads/[id]/actions.ts` (new): `'use server'` — `saveLeadFields(id, fd)`
+  (calls `updateLead`; converts the ₹ form value to integer paise with
+  `rupees(Number(fd.get('expectedFfMonthlyPotential') ?? 0))`), `saveScore(id, fd)`
+  (reads the 9 score keys as `Number(fd.get(k) ?? 0)` → `rescoreLead`),
+  `changeStage(id, fd)` (`setStage` with `lostReason`/`lostNotes` or undefined).
+  Each `revalidatePath('/leads/{id}')`.
+- `src/app/(app)/leads/[id]/stage-form.tsx` (new): `'use client'` — stage `<select>`
+  over `STAGES`, conditional `LOST_REASONS` select (`required`) + notes textarea
+  shown only when the selected stage is `LOST`; `StageBadge` + probability header.
+- `src/app/(app)/leads/[id]/page.tsx` (replace Task 12 placeholder): server component,
+  `requireUser()` + `getLead(user.orgId, id)` + `notFound()`. Three cards — Fields
+  (edit form, monthly potential pre-filled `expectedFfMonthlyPotential / 100`),
+  Qualification score (9 range inputs 0–1 step 0.1 defaulted from `lead.scoreInputs`,
+  shows `lead.score` + `<GradeBadge>`), Stage (`<StageForm>`). Actions bound via
+  `.bind(null, id)`. `<section id="timeline">` placeholder — Task 14 fills it.
+- TDD: `tests/services/lead-stage.test.ts` — written first, RED (`setStage` not
+  exported), then GREEN 2/2: (1) `setStage(…, 'NEGOTIATION')` → `stage NEGOTIATION`,
+  `probability 60` (config default); (2) `setStage(…, 'LOST')` rejects
+  `'lostReason required'`, then with `{lostReason:'PRICE', lostNotes:'too high'}`
+  → `stage LOST`, `probability 0`, `lostReason PRICE`, `lostNotes 'too high'`.
+- Tests: `npm test -- lead-stage` → 1 file / 2 passed. Full `npm test` → 13 files /
+  35 passed, run twice, stable. `npx tsc --noEmit` clean. `npm run lint` clean.
+  `npm run dev` (already running from this worktree, dev-login hatch): `/leads/<id>`
+  renders 200 with all three cards — 9 `type="range"` inputs, 14 stage `<option>`s,
+  all 9 score-key names, grade badge, timeline placeholder.
+- Deviations: (1) brief estimated "14 test files"; repo has 13 (`lead-stage` is one
+  of them) — 35 tests, all green. (2) Score-key labels + list live inline in
+  `page.tsx` (the `SCORE_KEYS` const in `actions.ts` is inside a `'use server'`
+  module and can't be imported by a component; `@/domain/scoring` doesn't export
+  its `KEYS`). (3) Could not exercise the server-action mutations via `curl` — Next's
+  React-flight multipart wire format isn't reproducible by hand; the render is
+  verified and `setStage`/`updateLead`/`rescoreLead` are covered by passing vitest.
+- Shortcut: the timeline `activities` insert in `setStage` duplicates Task 14's
+  `addActivity` — `ponytail:` comment in place, new PONYTAIL-DEBT row, cleared by Task 14.

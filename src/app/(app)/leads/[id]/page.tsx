@@ -1,13 +1,119 @@
 import { notFound } from 'next/navigation';
 import { requireUser } from '@/server/auth/session';
 import { getLead } from '@/server/services/lead';
+import { GradeBadge } from '@/components/grade-badge';
+import { formatINR } from '@/domain/money';
+import { saveLeadFields, saveScore, changeStage } from './actions';
+import { StageForm } from './stage-form';
 
-// Minimal placeholder so createLeadAction's redirect resolves. Task 13 builds the
-// real lead detail screen.
+const SCORE_FIELDS: { key: string; label: string }[] = [
+  { key: 'retailerNetwork', label: 'Retailer network' },
+  { key: 'categoryExperience', label: 'Category experience' },
+  { key: 'geoCoverage', label: 'Geographic coverage' },
+  { key: 'salesmen', label: 'Salesmen' },
+  { key: 'deliveryInfra', label: 'Delivery infrastructure' },
+  { key: 'workingCapital', label: 'Working capital' },
+  { key: 'brandPortfolio', label: 'Brand portfolio' },
+  { key: 'reputation', label: 'Reputation' },
+  { key: 'willingness', label: 'Willingness' },
+];
+
+const field = 'mt-1 block w-full rounded border px-2 py-1 text-sm';
+
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
   const lead = await getLead(user.orgId, id);
   if (!lead) notFound();
-  return <main className="p-6"><h1 className="text-xl font-semibold">{lead.businessName}</h1></main>;
+
+  const scoreInputs = (lead.scoreInputs ?? {}) as Record<string, number>;
+
+  return (
+    <main className="max-w-3xl space-y-6 p-6">
+      <div>
+        <h1 className="text-xl font-semibold">{lead.businessName}</h1>
+        <p className="text-sm text-neutral-500">{lead.contactPerson} · {lead.phone}</p>
+      </div>
+
+      {/* Card 1: editable fields */}
+      <section className="rounded border p-4">
+        <h2 className="mb-3 text-sm font-medium">Fields</h2>
+        <form action={saveLeadFields.bind(null, id)} className="grid grid-cols-2 gap-3">
+          <label className="text-sm">Business name
+            <input name="businessName" defaultValue={lead.businessName} required className={field} />
+          </label>
+          <label className="text-sm">Contact person
+            <input name="contactPerson" defaultValue={lead.contactPerson} required className={field} />
+          </label>
+          <label className="text-sm">Phone
+            <input name="phone" defaultValue={lead.phone} required pattern="[6-9][0-9]{9}" className={field} />
+          </label>
+          <label className="text-sm">Email
+            <input name="email" type="email" defaultValue={lead.email ?? ''} className={field} />
+          </label>
+          <label className="col-span-2 text-sm">Address
+            <input name="address" defaultValue={lead.address ?? ''} className={field} />
+          </label>
+          <label className="text-sm">Monthly potential (₹)
+            <input
+              name="expectedFfMonthlyPotential"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={lead.expectedFfMonthlyPotential / 100}
+              className={field}
+            />
+          </label>
+          <div className="col-span-2">
+            <button className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white">Save fields</button>
+          </div>
+        </form>
+      </section>
+
+      {/* Card 2: qualification score */}
+      <section className="rounded border p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <h2 className="text-sm font-medium">Qualification score</h2>
+          <span className="text-sm text-neutral-500">{lead.score}</span>
+          <GradeBadge grade={lead.grade} />
+        </div>
+        <form action={saveScore.bind(null, id)} className="space-y-2">
+          {SCORE_FIELDS.map(({ key, label }) => (
+            <label key={key} className="flex items-center gap-3 text-sm">
+              <span className="w-44 shrink-0">{label}</span>
+              <input
+                name={key}
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                defaultValue={Number(scoreInputs[key] ?? 0)}
+                className="flex-1"
+              />
+            </label>
+          ))}
+          <button className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white">Save score</button>
+        </form>
+      </section>
+
+      {/* Card 3: stage */}
+      <section className="rounded border p-4">
+        <h2 className="mb-3 text-sm font-medium">Stage</h2>
+        <StageForm
+          currentStage={lead.stage}
+          currentProbability={lead.probability}
+          lostReason={lead.lostReason}
+          lostNotes={lead.lostNotes}
+          action={changeStage.bind(null, id)}
+        />
+        <p className="mt-2 text-xs text-neutral-400">Weighted value: {formatINR(Math.round((lead.expectedFfMonthlyPotential * lead.probability) / 100))}</p>
+      </section>
+
+      {/* Task 14 fills this with the activity timeline. */}
+      <section id="timeline" className="rounded border p-4">
+        <h2 className="mb-3 text-sm font-medium">Timeline</h2>
+        <div className="text-sm text-neutral-400">Activity timeline — added in Task 14.</div>
+      </section>
+    </main>
+  );
 }
