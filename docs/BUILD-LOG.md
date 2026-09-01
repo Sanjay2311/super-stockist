@@ -833,3 +833,37 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   not sequential). No BUILD shortcut cutting a real corner — the thin-page
   ceiling (full Command Center is M3) is the pre-existing PONYTAIL-DEBT note,
   restated in a `// ponytail:` comment at the top of `page.tsx`.
+
+## 2026-09-01 — Final-review pre-merge fixes (C1–C3, I1–I3)
+- Single fix pass on the whole-branch review findings; no scope beyond the six.
+- C1 `src/app/(app)/leads/actions.ts` — `createLeadAction` now wraps the
+  monthly-potential field in `rupees(...)` (rupees → paise), matching the sibling
+  `[id]/actions.ts`.
+- C2 new pure helper `src/lib/patch.ts` `patchOnly(input, parsed)` — strips keys
+  the caller never supplied so `schema.partial().parse()` `.default()`s cannot
+  clobber columns on update. Applied in `lead.updateLead`, `task.updateTask`,
+  `territory.updateTerritory`. Tests: `tests/lib/patch.test.ts` (new, 3 cases) +
+  a `lead.test.ts` service assertion (create `deliveryVehicles:3`, update
+  `businessName` only, still 3).
+- C3 audit rows for config + task mutations (plan line 21): `saveScoreWeights` /
+  `saveThresholds` write `writeAudit(user,'config',key,'update',before,after)`;
+  `createTask`/`updateTask`/`completeTask` write `writeAudit(user,'task',…)`.
+  `addActivity` left UNAUDITED by design (plan:2425). Test assertions added in
+  `settings-actions.test.ts` + `task.test.ts`.
+- I1 `saveScoreWeights` rejects non-numeric (NaN) weights before
+  `assertWeightsValid` — `{ error: 'weights must be numbers' }`. Test case added.
+- I2 org-scoped mutations: `addActivity` loads the lead `id AND orgId` (throws
+  `not found`) and the follow-up `db.update` predicate gains `eq(orgId,…)`;
+  `updateTask`/`completeTask` load a `before` row `id AND orgId` (throws
+  `not found`) then mutate by id. Cross-org rejection tests added to
+  `activity.test.ts` + `task.test.ts`.
+- I3 `purgeDemo(orgId)` — all four deletes now `and(eq(table.orgId,orgId),
+  eq(table.isDemo,true))`; `purgeDemoAction` passes `user.orgId`; CLI `--purge`
+  does `seedBase().then(({orgId}) => purgeDemo(orgId))`. `hasDemoData` already
+  org-scoped. `seed.test.ts` calls updated + an org-scoping test added.
+- Tests: `npm test` → 23 files / 67 passed, run twice, stable (was 22/59).
+  `npx tsc --noEmit` clean. `npm run lint` clean.
+- Dev check (`next dev` :3000, DB devbrowse): a lead created through the
+  action's exact `rupees(Number('500000'))` transform stores `50000000` and
+  `formatINR` renders `₹5,00,000.00` (buggy path rendered `₹5,000.00`).
+- PONYTAIL-DEBT: vitest-parallelism race row marked CLEARED (shipped `cbaa27b`).

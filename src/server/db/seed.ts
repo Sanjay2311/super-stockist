@@ -193,18 +193,18 @@ export async function seedDemo(): Promise<void> {
   );
 }
 
-/** Delete every `is_demo` row (activities → tasks → leads → territories). */
-export async function purgeDemo(): Promise<void> {
-  await db.delete(activities).where(eq(activities.isDemo, true));
-  await db.delete(tasks).where(eq(tasks.isDemo, true));
-  await db.delete(distributorLeads).where(eq(distributorLeads.isDemo, true));
-  await db.delete(territories).where(eq(territories.isDemo, true));
+/** Delete this org's `is_demo` rows (activities → tasks → leads → territories). */
+export async function purgeDemo(orgId: string): Promise<void> {
+  await db.delete(activities).where(and(eq(activities.orgId, orgId), eq(activities.isDemo, true)));
+  await db.delete(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.isDemo, true)));
+  await db.delete(distributorLeads).where(and(eq(distributorLeads.orgId, orgId), eq(distributorLeads.isDemo, true)));
+  await db.delete(territories).where(and(eq(territories.orgId, orgId), eq(territories.isDemo, true)));
   console.log('purgeDemo: demo rows removed');
 }
 
 if (process.argv[1]?.endsWith('seed.ts')) {
   const purge = process.argv.includes('--purge');
-  (purge ? purgeDemo() : seedBase().then(seedDemo))
+  (purge ? seedBase().then(({ orgId }) => purgeDemo(orgId)) : seedBase().then(seedDemo))
     .then(() => { console.log(purge ? 'purge done' : 'seed done'); process.exit(0); })
     .catch((e) => { console.error(e); process.exit(1); });
 }

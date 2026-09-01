@@ -13,6 +13,11 @@ export type ActivityInput = z.input<typeof activitySchema>;
 export async function addActivity(user: AppUser, input: ActivityInput): Promise<ActivityRow> {
   assertCan(user, 'activity.create');
   const data = activitySchema.parse(input);
+  if (data.leadId) {
+    const [lead] = await db.select({ id: distributorLeads.id }).from(distributorLeads)
+      .where(and(eq(distributorLeads.id, data.leadId), eq(distributorLeads.orgId, user.orgId)));
+    if (!lead) throw new Error('not found');
+  }
   const [row] = await db.insert(activities).values({
     orgId: user.orgId,
     leadId: data.leadId ?? null,
@@ -29,7 +34,7 @@ export async function addActivity(user: AppUser, input: ActivityInput): Promise<
   if (data.leadId && data.nextFollowUpAt) {
     await db.update(distributorLeads)
       .set({ nextFollowUpAt: data.nextFollowUpAt, updatedAt: new Date() })
-      .where(eq(distributorLeads.id, data.leadId));
+      .where(and(eq(distributorLeads.id, data.leadId), eq(distributorLeads.orgId, user.orgId)));
   }
   return row;
 }

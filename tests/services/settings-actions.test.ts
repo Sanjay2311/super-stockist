@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-import { migrateTestDb, resetDb } from '../helpers/db';
+import { and, eq } from 'drizzle-orm';
+import { migrateTestDb, resetDb, testDb } from '../helpers/db';
 import { seedBase } from '@/server/db/seed';
 import { getConfig, CONFIG_DEFAULTS } from '@/server/services/config';
+import { auditLog } from '@/server/db/schema/audit';
 import type { AppUser } from '@/server/auth/session';
 
 // The actions call requireUser() (needs Next request context + Supabase) — stub it.
@@ -45,6 +47,24 @@ describe('saveScoreWeights', () => {
 
     expect(res).toEqual({ ok: true });
     expect(await getConfig(orgId, 'scoreWeights')).toEqual(w);
+
+    const audit = await testDb.select().from(auditLog)
+      .where(and(eq(auditLog.entityType, 'config'), eq(auditLog.entityId, 'scoreWeights')));
+    expect(audit).toHaveLength(1);
+    expect(audit[0].action).toBe('update');
+    expect(audit[0].newValues).toEqual(w);
+  });
+
+  it('rejects non-numeric (NaN) weights and leaves config unchanged', async () => {
+    const { orgId } = await seedBase();
+    vi.mocked(requireUser).mockResolvedValue(owner(orgId));
+    const fd = weightsForm(CONFIG_DEFAULTS.scoreWeights);
+    fd.set('retailerNetwork', 'abc'); // Number('abc') → NaN
+
+    const res = await saveScoreWeights(null, fd);
+
+    expect(res).toEqual({ error: 'weights must be numbers' });
+    expect(await getConfig(orgId, 'scoreWeights')).toEqual(CONFIG_DEFAULTS.scoreWeights);
   });
 
   it('rejects weights that do not sum to 100 and leaves config unchanged', async () => {

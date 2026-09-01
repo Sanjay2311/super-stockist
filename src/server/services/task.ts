@@ -2,7 +2,9 @@ import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { tasks } from '@/server/db/schema/crm';
 import { taskSchema, TASK_STATUSES } from '@/lib/schemas';
+import { patchOnly } from '@/lib/patch';
 import { assertCan } from '@/server/auth/permissions';
+import { writeAudit } from './audit';
 import { getFollowUpBuckets } from './followup';
 import { classifyFollowUp } from '@/domain/followup';
 import type { AppUser } from '@/server/auth/session';
@@ -29,6 +31,7 @@ export async function createTask(user: AppUser, input: TaskInput): Promise<TaskR
     assignedEmployeeId: d.assignedEmployeeId ?? (user.role === 'SALES' ? user.employeeId : null),
     createdBy: user.id,
   }).returning();
+  await writeAudit(user, 'task', row.id, 'create', null, row);
   return row;
 }
 
@@ -38,21 +41,29 @@ export async function updateTask(
   input: Partial<TaskInput> & { status?: TaskStatus },
 ): Promise<TaskRow> {
   assertCan(user, 'task.update');
-  const patch = taskSchema.partial().parse(input);
+  const [before] = await db.select().from(tasks)
+    .where(and(eq(tasks.id, id), eq(tasks.orgId, user.orgId)));
+  if (!before) throw new Error('not found');
+  const patch = patchOnly(input, taskSchema.partial().parse(input));
   const [row] = await db.update(tasks).set({
     ...patch,
     dueDate: patch.dueDate ? ymd(patch.dueDate) : undefined,
     status: input.status,
     updatedAt: new Date(),
-  }).where(and(eq(tasks.id, id), eq(tasks.orgId, user.orgId))).returning();
+  }).where(eq(tasks.id, id)).returning();
+  await writeAudit(user, 'task', id, 'update', before, row);
   return row;
 }
 
 export async function completeTask(user: AppUser, id: string): Promise<TaskRow> {
   assertCan(user, 'task.complete');
+  const [before] = await db.select().from(tasks)
+    .where(and(eq(tasks.id, id), eq(tasks.orgId, user.orgId)));
+  if (!before) throw new Error('not found');
   const [row] = await db.update(tasks)
     .set({ status: 'COMPLETED', completedAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(tasks.id, id), eq(tasks.orgId, user.orgId))).returning();
+    .where(eq(tasks.id, id)).returning();
+  await writeAudit(user, 'task', id, 'complete', { status: before.status }, { status: 'COMPLETED' });
   return row;
 }
 

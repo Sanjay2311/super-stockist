@@ -27,4 +27,19 @@ describe('activity service', () => {
     const { orgId } = await seedBase();
     await expect(addActivity(owner(orgId), { type: 'CALL' })).rejects.toThrow();
   });
+
+  it('refuses to attach an activity to a lead in another org', async () => {
+    const { orgId } = await seedBase();
+    const otherOrg = crypto.randomUUID();
+    const [foreign] = await testDb.insert(distributorLeads).values({
+      orgId: otherOrg, businessName: 'Foreign Co', contactPerson: 'Zara', phone: '9000000009',
+    }).returning();
+
+    await expect(
+      addActivity(owner(orgId), { leadId: foreign.id, type: 'CALL', nextFollowUpAt: new Date('2026-09-09T04:30:00Z') }),
+    ).rejects.toThrow('not found');
+
+    const [still] = await testDb.select().from(distributorLeads).where(eq(distributorLeads.id, foreign.id));
+    expect(still.nextFollowUpAt).toBeNull(); // cross-org update predicate held
+  });
 });

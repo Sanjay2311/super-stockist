@@ -48,7 +48,7 @@ describe('demo seed', () => {
   it('purge removes every demo row', async () => {
     const { orgId } = await seedBase();
     await seedDemo();
-    await purgeDemo();
+    await purgeDemo(orgId);
 
     expect(await testDb.select().from(distributorLeads).where(eq(distributorLeads.isDemo, true))).toHaveLength(0);
     expect(await testDb.select().from(activities).where(eq(activities.isDemo, true))).toHaveLength(0);
@@ -57,6 +57,20 @@ describe('demo seed', () => {
 
     expect(await testDb.select().from(distributorLeads)).toHaveLength(0);
     expect(await hasDemoData(orgId)).toBe(false);
+  });
+
+  it('purge is org-scoped — leaves another org\'s demo rows intact', async () => {
+    const { orgId } = await seedBase();
+    await seedDemo();
+    const otherOrg = crypto.randomUUID();
+    await testDb.insert(distributorLeads).values({
+      orgId: otherOrg, businessName: 'Other Org Demo', contactPerson: 'X', phone: '9000000001', isDemo: true,
+    });
+
+    await purgeDemo(orgId);
+
+    const survivors = await testDb.select().from(distributorLeads).where(eq(distributorLeads.orgId, otherOrg));
+    expect(survivors).toHaveLength(1);
   });
 
   it('seedDemo is safe to run twice', async () => {

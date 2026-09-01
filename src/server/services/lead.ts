@@ -4,6 +4,7 @@ import { distributorLeads } from '@/server/db/schema/crm';
 import { territories } from '@/server/db/schema/territory';
 import { employees } from '@/server/db/schema/identity';
 import { leadSchema, scoreInputsSchema } from '@/lib/schemas';
+import { patchOnly } from '@/lib/patch';
 import { assertCan } from '@/server/auth/permissions';
 import { getConfig } from './config';
 import { scoreDistributor, assertWeightsValid, type ScoreWeights } from '@/domain/scoring';
@@ -41,7 +42,7 @@ export async function updateLead(user: AppUser, id: string, input: Partial<LeadI
   const [before] = await db.select().from(distributorLeads)
     .where(and(eq(distributorLeads.id, id), eq(distributorLeads.orgId, user.orgId)));
   if (!before) throw new Error('not found');
-  const data = leadSchema.partial().parse(input);
+  const data = patchOnly(input, leadSchema.partial().parse(input));
   const [row] = await db.update(distributorLeads)
     .set({ ...clean(data), updatedAt: new Date() })
     .where(eq(distributorLeads.id, id)).returning();

@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import { migrateTestDb, resetDb } from '../helpers/db';
+import { and, eq } from 'drizzle-orm';
+import { migrateTestDb, resetDb, testDb } from '../helpers/db';
 import { seedBase } from '@/server/db/seed';
-import { createTask, completeTask, listOpenTasks, getTodayView } from '@/server/services/task';
+import { createTask, completeTask, updateTask, listOpenTasks, getTodayView } from '@/server/services/task';
 import { createLead } from '@/server/services/lead';
 import { addActivity } from '@/server/services/activity';
+import { tasks } from '@/server/db/schema/crm';
+import { auditLog } from '@/server/db/schema/audit';
 import type { AppUser } from '@/server/auth/session';
 
 const owner = (orgId: string): AppUser => ({ id: 'o', email: 'o', name: 'O', role: 'OWNER', employeeId: null, orgId });
@@ -21,6 +24,26 @@ describe('task service', () => {
     const done = await completeTask(u, t.id);
     expect(done.status).toBe('COMPLETED');
     expect(await listOpenTasks(orgId)).toHaveLength(0);
+
+    // audit_log rows written for create + complete (plan line 21)
+    const audit = await testDb.select().from(auditLog)
+      .where(and(eq(auditLog.entityType, 'task'), eq(auditLog.entityId, t.id)));
+    expect(audit.map((a) => a.action).sort()).toEqual(['complete', 'create']);
+  });
+
+  it('refuses to update or complete a task in another org', async () => {
+    const { orgId } = await seedBase();
+    const otherOrg = crypto.randomUUID();
+    const [foreign] = await testDb.insert(tasks).values({
+      orgId: otherOrg, title: 'Not yours', type: 'CALL', dueDate: '2026-08-31',
+    }).returning();
+
+    await expect(updateTask(owner(orgId), foreign.id, { title: 'hijack' })).rejects.toThrow('not found');
+    await expect(completeTask(owner(orgId), foreign.id)).rejects.toThrow('not found');
+
+    const [still] = await testDb.select().from(tasks).where(eq(tasks.id, foreign.id));
+    expect(still.title).toBe('Not yours');
+    expect(still.status).toBe('PENDING');
   });
 
   it('today view unions open tasks with due follow-ups, without creating task rows', async () => {

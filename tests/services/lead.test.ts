@@ -22,6 +22,18 @@ describe('lead service', () => {
     expect(lead.stage).toBe('IDENTIFIED');
   });
 
+  it('partial update does not clobber columns the caller did not send', async () => {
+    const { orgId } = await seedBase();
+    const lead = await createLead(owner(orgId), {
+      businessName: 'Infra Co', contactPerson: 'Deepa', phone: '9333333333', deliveryVehicles: 3,
+    });
+    expect(lead.deliveryVehicles).toBe(3);
+
+    const updated = await updateLead(owner(orgId), lead.id, { businessName: 'Infra Co Renamed' });
+    expect(updated.businessName).toBe('Infra Co Renamed');
+    expect(updated.deliveryVehicles).toBe(3); // schema .default(0) must not have overwritten it
+  });
+
   it('rejects a bad phone number', async () => {
     const { orgId } = await seedBase();
     await expect(createLead(owner(orgId), { businessName: 'X Co', contactPerson: 'Yash', phone: '12345' }))

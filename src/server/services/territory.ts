@@ -2,6 +2,7 @@ import { and, eq, isNull, asc } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { territories } from '@/server/db/schema/territory';
 import { territorySchema, type TerritoryInput } from '@/lib/schemas';
+import { patchOnly } from '@/lib/patch';
 import { assertCan } from '@/server/auth/permissions';
 import { writeAudit } from './audit';
 import type { AppUser } from '@/server/auth/session';
@@ -77,7 +78,7 @@ export async function updateTerritory(
     .from(territories)
     .where(and(eq(territories.id, id), eq(territories.orgId, user.orgId)));
   if (!before) throw new Error('not found');
-  const data = territorySchema.partial().parse(input);
+  const data = patchOnly(input, territorySchema.partial().parse(input));
   const [row] = await db
     .update(territories)
     .set({ ...data, updatedAt: new Date() })
