@@ -6,6 +6,7 @@ import { users, employees } from '@/server/db/schema/identity';
 import { seedBase } from '@/server/db/seed';
 import { createTerritory } from '@/server/services/territory';
 import { createLead, rescoreLead } from '@/server/services/lead';
+import { addActivity } from '@/server/services/activity';
 import { distributorLeads } from '@/server/db/schema/crm';
 import { CONFIG_DEFAULTS } from '@/server/services/config';
 import { rupees } from '@/domain/money';
@@ -51,6 +52,8 @@ async function main() {
 
   const SCORE_KEYS = ['retailerNetwork', 'categoryExperience', 'geoCoverage', 'salesmen', 'deliveryInfra', 'workingCapital', 'brandPortfolio', 'reputation', 'willingness'] as const;
 
+  const DAY = 86_400_000;
+  let idx = 0;
   for (const l of leads) {
     const lead = await createLead(u, {
       businessName: l.name, contactPerson: l.contact, phone: l.phone,
@@ -64,9 +67,18 @@ async function main() {
         .set({ stage: l.stage, probability: CONFIG_DEFAULTS.stageProbability[l.stage] })
         .where(eq(distributorLeads.id, lead.id));
     }
+    // Spread follow-ups across overdue / today / next-7 so the Today screen has content.
+    const offsets = [-2, -1, 0, 3, 6];
+    if (idx < offsets.length) {
+      await addActivity(u, {
+        leadId: lead.id, type: 'CALL', outcome: 'Discussed terms',
+        nextFollowUpAt: new Date(Date.now() + offsets[idx] * DAY),
+      });
+    }
+    idx += 1;
   }
 
-  console.log('dev-seed: created dev@local (OWNER), 6 territories, 6 leads. Set DEV_LOGIN_EMAIL=dev@local and run `npm run dev`.');
+  console.log('dev-seed: created dev@local (OWNER), 6 territories, 6 leads (5 with follow-ups). Set DEV_LOGIN_EMAIL=dev@local and run `npm run dev`.');
   process.exit(0);
 }
 

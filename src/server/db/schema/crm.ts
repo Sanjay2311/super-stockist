@@ -80,7 +80,8 @@ export const tasks = pgTable('tasks', {
   status: text('status').notNull().default('PENDING'),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   source: text('source').notNull().default('MANUAL'),
-  createdBy: uuid('created_by'),
+  createdBy: text('created_by'), // AppUser.id (Supabase auth uid); text so tests/system actors need not be uuids
+
   isDemo: boolean('is_demo').notNull().default(false),
   deletedAt,
   ...ts,

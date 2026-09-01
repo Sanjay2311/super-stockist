@@ -558,3 +558,54 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   `getFollowUpBuckets` (`next7`), so far-future follow-ups fall in no surfaced bucket —
   matches the brief.
 - Shortcuts / ponytail debt: none.
+
+## 2026-09-01 — Task 17: Task service + Today's Tasks screen
+- `src/server/services/task.ts`: `type TaskRow = typeof tasks.$inferSelect`, `type TaskStatus`,
+  and (per the zod-v4 `.default()` pattern from lead/activity) a local
+  `type TaskInput = z.input<typeof taskSchema>` so callers need not pass `priority`.
+  - `createTask(user, input)` — `assertCan(user,'task.create')`; `taskSchema.parse`;
+    `dueDate` stored as `d.dueDate.toISOString().slice(0,10)` (column is `date`);
+    `assignedEmployeeId` defaults to `user.employeeId` for SALES; `createdBy = user.id`.
+  - `updateTask(user, id, input & { status? })` — `assertCan('task.update')`,
+    `taskSchema.partial().parse`, spread patch + `updatedAt`.
+  - `completeTask(user, id)` — `assertCan('task.complete')`, sets `status='COMPLETED'`,
+    `completedAt=now`.
+  - `listOpenTasks(orgId, { assignedEmployeeId? })` — status in (PENDING, IN_PROGRESS),
+    not deleted, `order by dueDate asc`.
+  - `getTodayView(orgId, { assignedEmployeeId?, now? })` — union view (spec §4.3):
+    open tasks bucketed `overdue/today/upcoming` by `classifyFollowUp(new Date(
+    \`${t.dueDate}T12:00:00+05:30\`), now)`, PLUS `followUps = getFollowUpBuckets(orgId, opts)`.
+    A due follow-up is read from the lead row — it never creates a task row.
+- `src/app/(app)/today/actions.ts` — `addTask(formData)` / `finishTask(id)` server actions
+  (`requireUser` → service → `revalidatePath('/today')`).
+- `src/app/(app)/today/page.tsx` — replaced the placeholder: add-task form; `Tasks` column
+  (Overdue / Today / Upcoming, each row has a "Done" server-action button) and a
+  `Follow-ups` column (Overdue / Today / Next 7 days / Hot — no next action, each lead
+  linking to `/leads/{id}`). SALES scoped to `{ assignedEmployeeId: user.employeeId }`.
+- Schema: `tasks.created_by` changed `uuid` → `text` (new forward migration
+  `drizzle/0004_task_created_by_text.sql` + journal + `0004_snapshot.json`), mirroring
+  `audit_log.user_id` — system actors / test users need not be uuids. `crm.ts` updated to
+  match with the same comment.
+- `scripts/dev-fixtures.ts` — after each lead, `addActivity` seeds a follow-up at offsets
+  `[-2,-1,0,3,6]` days (first 5 leads) so `/today` has overdue/today/next-7 content.
+- TDD RED→GREEN: `tests/services/task.test.ts`
+  - RED: `Cannot find package '@/server/services/task'`.
+  - GREEN 2/2: (1) create → `listOpenTasks` == ['Call Acme'] → `completeTask` sets
+    `COMPLETED` and it drops out of open. (2) `getTodayView` with `now` pinned to
+    2026-08-31T09:00+05:30 unions an overdue task (`tasks.overdue` == ['Overdue meeting'])
+    with a lead whose activity set a same-day follow-up (`followUps.today` ==
+    ['FollowUp Co']), and `listOpenTasks` stays length 1 — no task row for the follow-up.
+- Tests: `npm test -- services/task` → 1 file / 2 passed. Full `npm test` → 18 files /
+  46 passed, run twice, stable. `npx tsc --noEmit` clean. `npm run lint` clean.
+- Dev check (`next dev` already on :3000, dev-login hatch; `npm run db:migrate` applied
+  0004 to devbrowse): set follow-ups on 3 dev leads via SQL — `/today` Follow-ups column
+  shows Overdue(1) Sri Balaji Distributors, Today(1) Green Valley Traders, Next 7 days(1)
+  Metro Foods Agency. Inserted two task rows (`created_by='dev-check'`, proving the text
+  column) — Tasks column showed Overdue(1) with a "Done" button and Upcoming(1), correctly
+  bucketed against the real date (2026-09-01); rows deleted after.
+- Deviations: (1) `TaskInput` is a local `z.input<...>` alias, not the `z.infer` export from
+  `@/lib/schemas` (same reason as lead/activity — `priority` has `.default('NORMAL')`).
+  (2) brief's Step-1 test used `contactPerson: 'F'` (fails `leadSchema` min(2)) — changed to
+  'Farida'; assertions unchanged. (3) `tasks.created_by` retyped to `text` via migration
+  0004 so the brief's `id: 'o'` test user (and future SYSTEM actors) can be stored.
+- Shortcuts / ponytail debt: none.
