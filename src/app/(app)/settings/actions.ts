@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireUser } from '@/server/auth/session';
 import { assertCan } from '@/server/auth/permissions';
 import { setConfig } from '@/server/services/config';
+import { purgeDemo } from '@/server/db/seed';
 import { assertWeightsValid, type ScoreWeights } from '@/domain/scoring';
 
 const WEIGHT_KEYS = [
@@ -35,4 +36,11 @@ export async function saveThresholds(_prev: unknown, formData: FormData) {
   await setConfig(user.orgId, 'hotLeadProbabilityThreshold', n);
   revalidatePath('/settings');
   return { ok: true as const };
+}
+
+export async function purgeDemoAction() {
+  const user = await requireUser();
+  assertCan(user, 'config.edit');
+  await purgeDemo();
+  revalidatePath('/', 'layout');
 }

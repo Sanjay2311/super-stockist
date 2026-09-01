@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import type { ScoreWeights } from '@/domain/scoring';
-import { saveScoreWeights, saveThresholds } from './actions';
+import { saveScoreWeights, saveThresholds, purgeDemoAction } from './actions';
 
 const WEIGHT_KEYS: (keyof ScoreWeights)[] = [
   'retailerNetwork', 'categoryExperience', 'geoCoverage', 'salesmen', 'deliveryInfra',
@@ -86,5 +86,35 @@ export function SettingsForms({ weights, threshold }: { weights: ScoreWeights; t
         </button>
       </form>
     </div>
+  );
+}
+
+export function PurgeDemoButton({ hasDemo }: { hasDemo: boolean }) {
+  const [pending, setPending] = useState(false);
+  return (
+    <form
+      action={purgeDemoAction}
+      onSubmit={(e) => {
+        if (!confirm('Delete all demo data (leads, activities, tasks, territories)? This cannot be undone.')) {
+          e.preventDefault();
+          return;
+        }
+        setPending(true);
+      }}
+      className="max-w-md space-y-2"
+    >
+      <h2 className="text-sm font-semibold text-neutral-600">Demo data</h2>
+      <p className="text-sm text-neutral-500">
+        {hasDemo
+          ? 'Demo data is currently loaded. Purge it before using this org for real work.'
+          : 'No demo data is loaded.'}
+      </p>
+      <button
+        disabled={!hasDemo || pending}
+        className="rounded bg-red-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+      >
+        {pending ? 'Purging…' : 'Purge demo data'}
+      </button>
+    </form>
   );
 }

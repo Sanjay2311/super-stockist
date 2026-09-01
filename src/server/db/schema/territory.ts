@@ -14,6 +14,7 @@ export const territories = pgTable('territories', {
   estimatedMarketPotential: bigint('estimated_market_potential', { mode: 'number' }).notNull().default(0),
   estimatedDistributorCount: integer('estimated_distributor_count').notNull().default(0),
   active: boolean('active').notNull().default(true),
+  isDemo: boolean('is_demo').notNull().default(false),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
   ...ts,
 });

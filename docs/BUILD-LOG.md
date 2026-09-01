@@ -734,3 +734,66 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   deferred to M2 — needs per-stage validation + a rescore sweep); `// ponytail:` note
   in `page.tsx` + new PONYTAIL-DEBT row. e2e-skip ledger row extended to name
   `settings.spec.ts`.
+
+## 2026-09-01 — Task 20: Seed demo data + purge
+
+- `src/server/db/schema/territory.ts` — added `isDemo boolean not null default false`
+  to `territories` (leads/activities/tasks already had `is_demo`; territories did
+  not, so demo territories could not be purged cleanly). Migration
+  `drizzle/0005_classy_miracleman.sql` (via `db:generate`): one
+  `ALTER TABLE "territories" ADD COLUMN "is_demo" boolean DEFAULT false NOT NULL;`.
+- `src/server/db/seed.ts` — added, all rows `isDemo: true`:
+  - `seedDemo()` — reads the first org (throws if none); skips (logs) if
+    `hasDemoData` already true. Inserts 1 "Bangalore East" ZONE + 12 AREA
+    territories (Whitefield … Bellandur); 20 `distributor_leads` from a fixed
+    `LEADS` array (generic FMCG names, no real people) spanning 12 stages
+    (IDENTIFIED→FIRST_ORDER + 1 LOST w/ `lostReason: EXISTING_COMPETITOR` + 1
+    ON_HOLD), `expectedFfMonthlyPotential` ₹1.5L–₹6L via `rupees(lakh*100_000)`,
+    `scoreInputs` from 4 uniform tiers (strong/good/mid/weak) → `score`/`grade`
+    via `scoreDistributor(inputs, CONFIG_DEFAULTS.scoreWeights)`, `probability`
+    from `CONFIG_DEFAULTS.stageProbability[stage]`, `nextFollowUpAt` mixed
+    (overdue / today / ≤7d / null); 53 `activities` (CALL per lead, +MEETING from
+    QUALIFIED, +PRESENTATION from PRESENTATION_DONE, +NEGOTIATION from NEGOTIATION);
+    8 `tasks` (mixed CRITICAL/HIGH/NORMAL/LOW, due -3…+7d, each linked to a lead).
+  - `purgeDemo()` — `delete where is_demo` on activities → tasks → distributor_leads
+    → territories.
+  - `hasDemoData(orgId)` — `limit 1` on `distributor_leads` where org + `is_demo`.
+  - CLI: `npm run db:seed` = `seedBase().then(seedDemo)`; `npm run db:seed -- --purge`
+    = `purgeDemo()`; both `process.exit`, `.catch` → exit 1.
+- `package.json` — `db:seed` now `tsx -r dotenv/config …` instead of relying on a
+  top-of-file `import 'dotenv/config'` in `seed.ts`: the app (`layout.tsx`,
+  `settings/`) now imports `seed.ts` for `hasDemoData`/`purgeDemo`, and `dotenv` is a
+  devDependency that must not land in the Next/Cloudflare bundle.
+- `src/app/(app)/settings/actions.ts` — `purgeDemoAction()`: `requireUser` +
+  `assertCan(user,'config.edit')` + `purgeDemo()` + `revalidatePath('/', 'layout')`.
+- `src/app/(app)/settings/forms.tsx` — `<PurgeDemoButton hasDemo />` client
+  component: `<form action={purgeDemoAction}>` with an `onSubmit` `confirm()` guard,
+  red button disabled when no demo data or pending.
+- `src/app/(app)/settings/page.tsx` — `hasDemoData(user.orgId)` added to the
+  `Promise.all`; renders `<PurgeDemoButton>` under the settings forms.
+- `src/app/(app)/layout.tsx` — `hasDemoData(user.orgId)`; thin amber banner
+  "Demo data is loaded — purge it from Settings before real use." when true.
+- TDD: `tests/services/seed.test.ts` — RED (`seedDemo is not a function`) → GREEN
+  (3 cases): ≥18 leads all `is_demo`, ≥6 distinct valid `STAGES` incl LOST (w/
+  reason) + ON_HOLD, graded, activities/tasks/territories all demo-flagged,
+  `hasDemoData` true; `purgeDemo` zeroes every demo-flagged table + `hasDemoData`
+  false; `seedDemo` twice → ≤24 leads (second run skips).
+- Tests: `npm test -- services/seed` → 1 file / 3 passed. Full `npm test` → 21 files
+  / 57 passed, run twice, stable. `npx tsc --noEmit` clean. `npm run lint` clean.
+- Dev check (`next dev`, DB devbrowse, dev-login `dev@local` = OWNER):
+  `npm run db:migrate` (0005 applied) → `npm run db:seed` → "13 territories, 20
+  leads, 53 activities, 8 tasks". `GET /` shows the amber banner; `/leads`,
+  `/pipeline`, `/today` populated; `/settings` shows "Purge demo data". Purge
+  exercised via `npm run db:seed -- --purge` → all four demo counts 0, banner gone
+  on `/`. Re-seeded + `npm run dev:fixtures` (dev user untouched — not demo data).
+- Deviations from brief: (1) no `distributors` (M2) — "5 distributors" skipped.
+  (2) No `employees` "Field Rep (Demo)" row and no `employee_daily_reports` demo
+  rows — neither table has `is_demo`, so they cannot be purged cleanly; leads/
+  activities/tasks carry no `employeeId`. (3) `territories.is_demo` column added
+  (brief assumed a marker already existed). (4) `db:seed` script switched to
+  `tsx -r dotenv/config` (see package.json note above). (5) Server-action purge
+  path not driven headless (no local Supabase) — `purgeDemo()` core verified via
+  CLI + the `seed.test.ts` purge case; the action wrapper mirrors the existing
+  `saveThresholds` gate pattern.
+- Shortcuts: demo `scoreInputs` use 4 uniform tiers (every key equal) so each
+  tier yields one fixed score — fine for demo data, no ledger entry.
