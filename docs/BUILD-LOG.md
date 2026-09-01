@@ -979,3 +979,37 @@ One entry per completed task: what shipped, files touched, tests run + result, s
 - Deviations: none. YAGNI — exactly the 3 brief tables, no extra columns. No
   corner cut → no new PONYTAIL-DEBT row (the `product_prices.mrp` snapshot debt
   row is a later task per the brief).
+
+## 2026-09-01 — M2a Task 4: Pricing calculator domain (`src/domain/pricing.ts`)
+- `src/domain/pricing.ts` — pure function `computePricing(input: PricingInput):
+  PricingResult`. No DB / framework imports; `import type { Paise } from
+  './money'` only. Exports: `PricingInput`, `PricingResult`, `computePricing`.
+  - `productCostPaise = ssBillingPrice` (landed cost of goods only).
+  - `grossMarginPaise = sellingPrice - productCostPaise`; `grossMarginPct =
+    part/whole*100`, 0 when `sellingPrice === 0`.
+  - `netContributionPaise = grossMarginPaise - Σ(freight, scheme, loading,
+    salesIncentive, samples, other)` (each `?? 0`) — variable costs are
+    below-gross per spec §28 waterfall (the authority), so they do NOT touch
+    `grossMargin`; §5.2's "product cost = ssBillingPrice + freight" phrasing is
+    superseded to avoid double-counting (controller ruling R3).
+  - `maxPermissibleDiscountPaise = Math.max(0, sellingPrice - floorPrice)`;
+    `belowFloor = sellingPrice < floorPrice`.
+  - `taxable`: when `gstInclusive`, `Math.round(amount / (1 + gstPct/100))` for
+    both `sellingExGst` and `ssCostExGst`; when not inclusive, both equal the
+    inclusive value.
+  - `waterfall = { mrp, retailerPrice: retailerPrice ?? null, distributorPrice:
+    sellingPrice, ssPrice: ssBillingPrice, ssCost: productCostPaise }`.
+  - Computes and flags only — never mutates or recommends a price.
+- `tests/domain/pricing.test.ts` — 6 specs (verbatim from the brief), Almond 100g
+  anchor: cost 10700p, MRP 19300p, selling 11984p, floor 11556p, 12% GST incl →
+  grossMargin 1284p (10.714%), maxDiscount 428p, `sellingExGst = round(11984/1.12)
+  = 10700`, `ssCostExGst = round(10700/1.12) = 9554`. Covers: no variable costs;
+  variable costs hit net only; ex-GST back-out; below-floor flag + discount clamp
+  (grossMargin 300p at selling 11000p); waterfall with retailerPrice 13782p;
+  `gstInclusive:false` → taxable === inclusive.
+- RED→GREEN: test written first → FAIL `Cannot find package '@/domain/pricing'`;
+  added the module → 6/6 pass.
+- Tests: `npm test` → 26 files / 81 passed, run twice, stable (was 25/75; +1
+  file, +6 tests). `npx tsc --noEmit` clean. `npm run lint` clean.
+- Deviations: none — Step 3 code implemented exactly as the brief specifies.
+  YAGNI — exactly the 3 exports listed. No corner cut → no new PONYTAIL-DEBT row.
