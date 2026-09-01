@@ -55,7 +55,7 @@ export const productPrices = pgTable('product_prices', {
   mrp: bigint('mrp', { mode: 'number' }),
   isDemoAssumption: boolean('is_demo_assumption').notNull().default(false),
   manualOverride: boolean('manual_override').notNull().default(false),
-  overrideBy: uuid('override_by'),
+  overrideBy: text('override_by'), // AppUser.id (Supabase auth uid); text so tests/system actors need not be uuids
   overrideAt: timestamp('override_at', { withTimezone: true }),
   effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull().defaultNow(),
   ...ts,

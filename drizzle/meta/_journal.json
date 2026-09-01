@@ -57,6 +57,13 @@
       "when": 1788254160723,
       "tag": "0007_cheerful_johnny_blaze",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788255665470,
+      "tag": "0008_product_price_override_by_text",
+      "breakpoints": true
     }
   ]
 }

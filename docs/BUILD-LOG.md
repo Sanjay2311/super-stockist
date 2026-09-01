@@ -1086,3 +1086,82 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   `satisfies` completeness check) — behaviour identical, completeness now
   verified. YAGNI — exactly the 3 keys + the one helper. No corner cut → no new
   PONYTAIL-DEBT row.
+
+## 2026-09-01 — M2a Task 6: Permissions + product service (list / get / update / prices / recommend / redaction)
+- `src/server/auth/permissions.ts` — `Action` union + `OWNER_ACTIONS` gain
+  `product.view` / `product.edit` / `pricing.recommend`; `SALES_ACTIONS` gains
+  only `product.view`.
+- `src/lib/schemas.ts` — appended `PRODUCT_UNITS = ['G','KG','ML','L','PCS']` and
+  `productSchema` (zod v4): `name` 2–160; `unit` enum(PRODUCT_UNITS); `gstPct`
+  int 0–28; `active` / `volatilePrice` bool; `shelfLifeDays` / `reorderLevel` /
+  `minStock` / `maxStock` / `preferredStock` int ≥ 0; `mrp` int ≥ 0 nullable
+  (paise). All fields `.optional()` (this task only updates). Territory/lead/etc
+  exports untouched.
+- `src/server/services/product.ts` (new) — every export from the brief:
+  `ProductRow` / `ProductPriceRow` / `ProductWithPrice`;
+  `PRODUCT_FINANCIAL_FIELDS = ['ssBillingPrice','floorPrice','targetPrice']`;
+  `redactPrice` (null passthrough → `stripFinancial`), `redactProduct`
+  (`{ ...row, price: redactPrice(...) }`), `redactProducts`; `listCategories`
+  (active, not-deleted, name asc); `listProducts` (LEFT JOIN prices + categories,
+  `isNull(deletedAt)`, `q` ILIKE name/skuCode, `activeOnly`, name asc, default
+  limit 100 — returns FULL rows, caller redacts); `getProduct` (org-scoped,
+  not-deleted); `updateProduct` (`assertCan('product.edit')`, org-scoped `before`
+  → `'not found'`, `patchOnly`, `writeAudit('product',id,'update')`);
+  `updatePrices` (`assertCan('product.edit')`, org-scoped price row →
+  `'not found'`, every provided value a finite int ≥ 0 else `'invalid price'`,
+  `null` allowed only for `retailerPrice`/`mrp`, sets `manualOverride: true` +
+  `overrideBy`/`overrideAt`/`updatedAt`, `writeAudit('product_price',…,'override')`);
+  `computeFor` (loads product+price+category, `getConfig('pricesGstInclusive')`,
+  `bandsForCategory`, `computePricing` + `recommendPricing` both fed the
+  product's real `gstPct`; `null` if product or price row missing);
+  `resetToRecommended` (`assertCan('pricing.recommend')`, `recommendPricing`,
+  writes distributor/floor/target/retailer + `manualOverride:false`,
+  `isDemoAssumption:false`; fills `products.mrp` from `mrpSuggestion` ONLY when it
+  was null; `writeAudit('product_price',…,'reset_to_recommended')`);
+  `regenerateAllRecommended` (`assertCan('pricing.recommend')`, one query for all
+  `{product,price,categoryName}` triples via INNER JOIN, optional
+  `manualOverride === false` filter, plain per-row `db.update` loop — no bulk CTE,
+  never touches a set MRP, ONE summary `writeAudit('config','regenerate_prices',
+  'regenerate_prices', null, { updated, onlyUnoverridden })`).
+  `type ProductInput = z.input<typeof productSchema>` is local to this file.
+- `src/server/db/schema/product.ts` + `drizzle/0008_product_price_override_by_text.sql`
+  (+ journal / snapshot via `drizzle-kit generate`) — **`product_prices.override_by`
+  changed `uuid` → `text`.** The brief's verbatim service test seeds actors with
+  `id: 'u-owner'` / `'u-sales'` and asserts `updated.overrideBy === 'u-owner'`;
+  a uuid column rejects that. Mirrors the existing `audit_log.user_id` /
+  `tasks.created_by` convention (see `drizzle/0004_task_created_by_text.sql`) —
+  system/test actors need not be uuids. Root-cause fix, not a test hack.
+- `tests/domain/permissions.test.ts` — +1 spec `gates product actions by role`
+  (verbatim from brief). RED: `can(owner,'product.view')` false → GREEN after the
+  matrix edit. 4/4.
+- `tests/services/product.test.ts` (new) — brief's 6 specs verbatim + 1 added
+  (`getProduct` org-scoped / soft-delete, mirrors `lead.test.ts` and removes an
+  unused-import lint warning since the brief's specs don't call `getProduct`).
+  RED: `@/server/services/product` not found. After implementation + the
+  `override_by` migration: 7/7 (10/10 including `product-schema.test.ts` in the
+  same glob).
+- `redactProduct` behaviour: SALES → `price` is a shallow copy minus
+  `ssBillingPrice`/`floorPrice`/`targetPrice` (keeps `distributorPrice`,
+  `retailerPrice`, `mrp`, …); OWNER → `stripFinancial` returns the same `price`
+  ref untouched. `price === null` passes straight through.
+- Audit rows: `updateProduct` → `('product', id, 'update')`; `updatePrices` →
+  `('product_price', productId, 'override')`; `resetToRecommended` →
+  `('product_price', productId, 'reset_to_recommended')`;
+  `regenerateAllRecommended` → exactly ONE `('config', 'regenerate_prices',
+  'regenerate_prices')` with `newValues = { updated, onlyUnoverridden }`.
+- Tests: `npm test` → 28 files / 95 passed, run twice, stable (was 28/94-ish;
+  +1 permissions spec, +7 product specs, product-schema already counted).
+  `npx tsc --noEmit` clean (one iteration: `set[f] = null` on a
+  `Partial<ProductPriceRow>` union key — fixed by narrowing `f` to
+  `'retailerPrice' | 'mrp'` inline instead of a `Set.has` check).
+  `npm run lint` clean.
+- Deviations: (1) `override_by` uuid→text + migration 0008 (justified above);
+  (2) `productSchema` includes `unit` (not in the brief's field list) so the
+  exported `PRODUCT_UNITS` has a real consumer and form posts of `unit` are
+  validated; (3) `regenerateAllRecommended`'s `writeAudit` passes `entityId` and
+  `action` both `'regenerate_prices'` (the brief's 5-arg shorthand collapsed the
+  duplicate; both columns are `NOT NULL`); (4) +1 `getProduct` test as noted.
+  `computeFor`/`resetToRecommended`/`regenerate` read MRP from `products.mrp`
+  (the catalogue MRP for the waterfall), not the `product_prices.mrp` snapshot.
+- Shortcut: `bandsForCategory` is called once per row in
+  `regenerateAllRecommended` (2 config reads per product) — see PONYTAIL-DEBT.

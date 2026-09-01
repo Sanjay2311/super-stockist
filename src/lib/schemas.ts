@@ -78,6 +78,25 @@ export const taskSchema = z.object({
 });
 export type TaskInput = z.infer<typeof taskSchema>;
 
+// ── Product master ─────────────────────────────────────────────────────────
+export const PRODUCT_UNITS = ['G', 'KG', 'ML', 'L', 'PCS'] as const;
+
+const intGte0 = z.coerce.number().int().min(0);
+
+export const productSchema = z.object({
+  name: z.string().min(2).max(160),
+  unit: z.enum(PRODUCT_UNITS).optional(),
+  gstPct: z.coerce.number().int().min(0).max(28).optional(),
+  active: z.boolean().optional(),
+  volatilePrice: z.boolean().optional(),
+  shelfLifeDays: intGte0.optional(),
+  reorderLevel: intGte0.optional(),
+  minStock: intGte0.optional(),
+  maxStock: intGte0.optional(),
+  preferredStock: intGte0.optional(),
+  mrp: intGte0.nullable().optional(), // paise
+});
+
 export const dailyReportSchema = z.object({
   reportDate: z.coerce.date(),
   areasVisited: z.array(z.string().max(120)).default([]),
