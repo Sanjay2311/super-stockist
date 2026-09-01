@@ -1013,3 +1013,39 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   file, +6 tests). `npx tsc --noEmit` clean. `npm run lint` clean.
 - Deviations: none — Step 3 code implemented exactly as the brief specifies.
   YAGNI — exactly the 3 exports listed. No corner cut → no new PONYTAIL-DEBT row.
+
+## 2026-09-01 — M2a Task 5: Price recommendation engine (`src/domain/pricing-recommend.ts`)
+- `src/domain/pricing-recommend.ts` — NEW pure module. `import type { Paise }
+  from './money'` only; no DB / framework. Exports: `PricingBands`,
+  `RecommendInput`, `RecommendResult`, `recommendPricing`. Private helpers
+  `markup` / `rupees` / `marginPct` (local string building only — no `Intl`).
+  - `floorPrice = round(cost * (1 + (volatile ? volatileFloorBufferPct :
+    ssMinMarginPct)/100))`; `distributorPrice` / `targetPrice` off `cost` with
+    `ssNormalMarginPct` / `ssTargetMarginPct`; `retailerPrice = round(
+    distributorPrice * (1 + distributorMarginPct/100))` (PTR).
+  - `mrpSuggestion = mrp == null ? round(retailerPrice * (1 +
+    retailerMarginPct/100)) : null`.
+  - `rationale[]` one entry per recommended field, plain English; floor `why`
+    says "volatile-commodity buffer" and names volatility when `volatile`.
+    Chain sanity: when `mrp != null` and `(mrp - retailerPrice)/retailerPrice*100
+    < retailerMarginPct`, push `{ field: 'mrpCheck', valuePaise: mrp, why: '...
+    only supports R% retailer margin ...' }`.
+  - `marginAtEach.{floorPct,distributorPct,targetPct} = (price - cost)/cost*100`
+    (0 when `cost === 0`). Recommends only — never mutates.
+- `tests/domain/pricing-recommend.test.ts` — 4 specs (verbatim from the brief).
+  Almond §5.3 anchor (cost 10700p, MRP 19300p, non-volatile): floor 11556p,
+  distributor 11984p, target 12626p, retailer `round(11984*1.15)` = 13782p,
+  `mrpSuggestion` null, marginAtEach 8 / 12 / 18%; MRP↔retailer headroom ~40% ≥
+  25% → no `mrpCheck`. Volatile (cost 10000p): floor `10000*1.12` = 11200p (not
+  1.08), floor `why` matches /volatile/i. MRP-suggest (cost 10000p, mrp null):
+  retailer `round(round(10000*1.12)*1.15)` = 12880p, `mrpSuggestion`
+  `round(12880*1.25)` = 16100p. mrpCheck (cost 10000p, mrp 13000p): retailer
+  12880p, headroom ~0.9% < 25% → flag with /only supports/i.
+- RED→GREEN: test written first → FAIL `Cannot find package
+  '@/domain/pricing-recommend'`; added the module → 4/4 pass.
+- Tests: `npm test` → 27 files / 85 passed, run twice, stable (was 26/81; +1
+  file, +4 tests). `npx tsc --noEmit` clean. `npm run lint` clean.
+- Deviations: none — Step 3 code implemented exactly as the brief specifies. No
+  Task 3 `PricingBands` stub was present (Task 3 runs after this); this task
+  creates the full module. YAGNI — exactly the 4 exports listed. No corner cut →
+  no new PONYTAIL-DEBT row.
