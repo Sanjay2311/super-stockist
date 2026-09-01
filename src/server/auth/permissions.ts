@@ -7,6 +7,7 @@ export type Action =
   | 'dailyReport.submit' | 'dailyReport.viewAll'
   | 'territory.view' | 'territory.edit'
   | 'product.view' | 'product.edit' | 'product.viewCost' | 'pricing.recommend'
+  | 'distributor.view' | 'distributor.create' | 'distributor.edit'
   | 'config.view' | 'config.edit'
   | 'employee.manage'
   | 'dashboard.view';
@@ -17,6 +18,7 @@ const OWNER_ACTIONS: Action[] = [
   'dailyReport.submit', 'dailyReport.viewAll',
   'territory.view', 'territory.edit',
   'product.view', 'product.edit', 'product.viewCost', 'pricing.recommend',
+  'distributor.view', 'distributor.create', 'distributor.edit',
   'config.view', 'config.edit',
   'employee.manage', 'dashboard.view',
 ];
@@ -24,7 +26,9 @@ const OWNER_ACTIONS: Action[] = [
 const SALES_ACTIONS: Action[] = [
   'lead.create', 'lead.update', 'lead.setStage',
   'activity.create', 'task.create', 'task.update', 'task.complete',
-  'dailyReport.submit', 'territory.view', 'product.view', 'config.view', 'dashboard.view',
+  'dailyReport.submit', 'territory.view', 'product.view',
+  'distributor.view', 'distributor.create',
+  'config.view', 'dashboard.view',
 ];
 
 const MATRIX: Record<Role, ReadonlySet<Action>> = {

@@ -97,6 +97,35 @@ export const productSchema = z.object({
   mrp: intGte0.nullable().optional(), // paise
 });
 
+// ── Distributor master (spec §4.4) ─────────────────────────────────────────
+export const DISTRIBUTOR_STATUSES = ['PROSPECT', 'APPROVED', 'ACTIVE', 'TEMP_INACTIVE', 'SUSPENDED', 'CLOSED'] as const;
+export const DISTRIBUTOR_GRADES = ['A', 'B', 'C'] as const;
+
+export const distributorSchema = z.object({
+  businessName: z.string().min(2).max(160),
+  contactPerson: z.string().min(2).max(120),
+  phone: z.string().regex(/^[6-9]\d{9}$/, 'Enter a 10-digit Indian mobile number'),
+  email: z.email().optional().or(z.literal('')),
+  address: z.string().max(400).optional().or(z.literal('')),
+  territoryId: z.uuid().nullable().optional(),
+  exclusive: z.boolean().optional(),
+  assignedEmployeeId: z.uuid().nullable().optional(),
+  status: z.enum(DISTRIBUTOR_STATUSES).optional(),
+  grade: z.enum(DISTRIBUTOR_GRADES).nullable().optional(),
+  creditLimit: z.coerce.number().int().min(0).optional(),            // paise
+  creditDays: z.coerce.number().int().min(0).max(365).optional(),
+  paymentTerms: z.string().max(200).optional().or(z.literal('')),
+  expectedMonthlyPurchase: z.coerce.number().int().min(0).optional(), // paise
+  // `review_date` is a Postgres `date` (string-mode) column — coerce the form
+  // value through a Date for validation, then hand the DB a 'YYYY-MM-DD' string.
+  reviewDate: z.coerce.date().nullable().optional()
+    .transform((d) => (d instanceof Date ? d.toISOString().slice(0, 10) : d)),
+  agreementStatus: z.string().max(80).optional().or(z.literal('')),
+  // not a column — signals an accepted §13 exclusivity override on updateDistributor
+  overrideReason: z.string().max(500).optional().or(z.literal('')),
+});
+export type DistributorInput = z.infer<typeof distributorSchema>;
+
 export const dailyReportSchema = z.object({
   reportDate: z.coerce.date(),
   areasVisited: z.array(z.string().max(120)).default([]),
