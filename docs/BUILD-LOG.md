@@ -908,3 +908,31 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   `npx tsc --noEmit` clean. `npm run lint` clean. `npm run build` succeeds.
 - PONYTAIL-DEBT: no I4–I8 debt row existed; added an M1-empty
   `LEAD_FINANCIAL_FIELDS` → "populate in M2" pointer row.
+
+## 2026-09-01 — M2a Task 1: F&F catalogue data file + typed loader
+- `scripts/gen-ff-catalogue.py` — reads `Super Stockist Price List .xlsx` with
+  stdlib only (`zipfile` + `xml.etree`, no openpyxl dep): unzips the xlsx,
+  resolves `sharedStrings.xml`, walks `sheet1.xml` rows into a 9-col grid,
+  section-headers switch category, jar categories (Dry Fruits/Seeds/Spices)
+  fan out to the 100/250/500/1000g pack columns, Flours = single 1kg KG row,
+  Other = free-text variation. Emits the catalogue JSON to stdout, SKU count to
+  stderr. Committed for reproducibility.
+- `data/ff-catalogue.json` — generated: `{ brand, gstInclusive:true,
+  gstPctByCategory, volatileNote, skus[184] }`. Per-category: Dry Fruits 32,
+  Seeds 40, Flours 17, Spices 92, Other 3 (matches the brief exactly). Almond
+  100g → currentPaise 10700 / mrpPaise 19300 / volatile true / Dry Fruits. The
+  41 `1kg` jar packs (unit G) have `mrpPaise: null` (no MRP column in the sheet).
+  Prices stored as integer paise (`round(rupees*100)`). Committed.
+- `src/server/db/ff-catalogue.ts` — `readFileSync(join(process.cwd(),'data',
+  'ff-catalogue.json'))` parsed + validated once at import by a zod v4 schema
+  (`z.enum` category/unit, `z.record(z.string(),z.number())` GST map,
+  `.nullable()` packGrams/mrpPaise). Exports `FF_CATALOGUE`, `CatalogueSku`,
+  `Catalogue` (both types `z.infer`'d from the schema).
+- `tests/server/ff-catalogue.test.ts` — 3 specs: 184 SKUs / integer positive
+  paise / 5 valid categories; Almond 100g row matches the sheet; every 1kg jar
+  pack has `mrpPaise === null`.
+- RED→GREEN: test written first, failed with `Cannot find package
+  '@/server/db/ff-catalogue'`; added the loader → 3/3 pass.
+- Tests: `npm test` → 24 files / 72 passed (was 23/69; +1 file, +3 tests).
+  `npx tsc --noEmit` clean. `npm run lint` clean.
+- Deviations: none. No corner cut → no PONYTAIL-DEBT row.

@@ -1,0 +1,1854 @@
+{
+  "brand": "Farm & Farmers",
+  "gstInclusive": true,
+  "gstPctByCategory": {
+    "Dry Fruits": 12,
+    "Seeds": 5,
+    "Flours": 5,
+    "Spices": 5,
+    "Other": 5
+  },
+  "volatileNote": "Almonds, Cashews, Pista & Pumpkin Seeds prices fluctuate with market",
+  "skus": [
+    {
+      "product": "Almond",
+      "category": "Dry Fruits",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 10700,
+      "mrpPaise": 19300,
+      "volatile": true
+    },
+    {
+      "product": "Almond",
+      "category": "Dry Fruits",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 26800,
+      "mrpPaise": 48200,
+      "volatile": true
+    },
+    {
+      "product": "Almond",
+      "category": "Dry Fruits",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 53500,
+      "mrpPaise": 96300,
+      "volatile": true
+    },
+    {
+      "product": "Almond",
+      "category": "Dry Fruits",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 107000,
+      "mrpPaise": null,
+      "volatile": true
+    },
+    {
+      "product": "Cashew",
+      "category": "Dry Fruits",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 8600,
+      "mrpPaise": 15500,
+      "volatile": true
+    },
+    {
+      "product": "Cashew",
+      "category": "Dry Fruits",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 21500,
+      "mrpPaise": 38700,
+      "volatile": true
+    },
+    {
+      "product": "Cashew",
+      "category": "Dry Fruits",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 43000,
+      "mrpPaise": 77400,
+      "volatile": true
+    },
+    {
+      "product": "Cashew",
+      "category": "Dry Fruits",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 86000,
+      "mrpPaise": null,
+      "volatile": true
+    },
+    {
+      "product": "Walnuts",
+      "category": "Dry Fruits",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 8500,
+      "mrpPaise": 15300,
+      "volatile": false
+    },
+    {
+      "product": "Walnuts",
+      "category": "Dry Fruits",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 21300,
+      "mrpPaise": 38300,
+      "volatile": false
+    },
+    {
+      "product": "Walnuts",
+      "category": "Dry Fruits",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 42500,
+      "mrpPaise": 76500,
+      "volatile": false
+    },
+    {
+      "product": "Walnuts",
+      "category": "Dry Fruits",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 85000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Raisins",
+      "category": "Dry Fruits",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 7000,
+      "mrpPaise": 12600,
+      "volatile": false
+    },
+    {
+      "product": "Raisins",
+      "category": "Dry Fruits",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 17500,
+      "mrpPaise": 31500,
+      "volatile": false
+    },
+    {
+      "product": "Raisins",
+      "category": "Dry Fruits",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 35000,
+      "mrpPaise": 63000,
+      "volatile": false
+    },
+    {
+      "product": "Raisins",
+      "category": "Dry Fruits",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 70000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Black Raisins",
+      "category": "Dry Fruits",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 7000,
+      "mrpPaise": 12600,
+      "volatile": false
+    },
+    {
+      "product": "Black Raisins",
+      "category": "Dry Fruits",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 17500,
+      "mrpPaise": 31500,
+      "volatile": false
+    },
+    {
+      "product": "Black Raisins",
+      "category": "Dry Fruits",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 35000,
+      "mrpPaise": 63000,
+      "volatile": false
+    },
+    {
+      "product": "Black Raisins",
+      "category": "Dry Fruits",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 70000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Anjeer (Figs)",
+      "category": "Dry Fruits",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 9200,
+      "mrpPaise": 16600,
+      "volatile": false
+    },
+    {
+      "product": "Anjeer (Figs)",
+      "category": "Dry Fruits",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 25500,
+      "mrpPaise": 45900,
+      "volatile": false
+    },
+    {
+      "product": "Anjeer (Figs)",
+      "category": "Dry Fruits",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 51000,
+      "mrpPaise": 91800,
+      "volatile": false
+    },
+    {
+      "product": "Anjeer (Figs)",
+      "category": "Dry Fruits",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 102000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Mix Dry Fruits",
+      "category": "Dry Fruits",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 9800,
+      "mrpPaise": 17600,
+      "volatile": false
+    },
+    {
+      "product": "Mix Dry Fruits",
+      "category": "Dry Fruits",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 24500,
+      "mrpPaise": 44100,
+      "volatile": false
+    },
+    {
+      "product": "Mix Dry Fruits",
+      "category": "Dry Fruits",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 49000,
+      "mrpPaise": 88200,
+      "volatile": false
+    },
+    {
+      "product": "Mix Dry Fruits",
+      "category": "Dry Fruits",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 98000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Breakfast Punch",
+      "category": "Dry Fruits",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 6000,
+      "mrpPaise": 10800,
+      "volatile": false
+    },
+    {
+      "product": "Breakfast Punch",
+      "category": "Dry Fruits",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 15000,
+      "mrpPaise": 27000,
+      "volatile": false
+    },
+    {
+      "product": "Breakfast Punch",
+      "category": "Dry Fruits",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 30000,
+      "mrpPaise": 54000,
+      "volatile": false
+    },
+    {
+      "product": "Breakfast Punch",
+      "category": "Dry Fruits",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 60000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Jaggery Powder",
+      "category": "Other",
+      "packLabel": "500gm jar",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 7200,
+      "mrpPaise": 15500,
+      "volatile": false
+    },
+    {
+      "product": "Black Salt",
+      "category": "Other",
+      "packLabel": "400gm",
+      "packGrams": 400,
+      "unit": "G",
+      "currentPaise": 13500,
+      "mrpPaise": 24000,
+      "volatile": false
+    },
+    {
+      "product": "Black Salt",
+      "category": "Other",
+      "packLabel": "900gm",
+      "packGrams": 900,
+      "unit": "G",
+      "currentPaise": 22000,
+      "mrpPaise": 39500,
+      "volatile": false
+    },
+    {
+      "product": "Chia Seeds",
+      "category": "Seeds",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 4000,
+      "mrpPaise": 7200,
+      "volatile": false
+    },
+    {
+      "product": "Chia Seeds",
+      "category": "Seeds",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 8200,
+      "mrpPaise": 14800,
+      "volatile": false
+    },
+    {
+      "product": "Chia Seeds",
+      "category": "Seeds",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 13600,
+      "mrpPaise": 24500,
+      "volatile": false
+    },
+    {
+      "product": "Chia Seeds",
+      "category": "Seeds",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 26500,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Flax Seeds",
+      "category": "Seeds",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 2500,
+      "mrpPaise": 4500,
+      "volatile": false
+    },
+    {
+      "product": "Flax Seeds",
+      "category": "Seeds",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 4400,
+      "mrpPaise": 7900,
+      "volatile": false
+    },
+    {
+      "product": "Flax Seeds",
+      "category": "Seeds",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 7100,
+      "mrpPaise": 12800,
+      "volatile": false
+    },
+    {
+      "product": "Flax Seeds",
+      "category": "Seeds",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 13900,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Sunflower Seeds",
+      "category": "Seeds",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 2800,
+      "mrpPaise": 5000,
+      "volatile": false
+    },
+    {
+      "product": "Sunflower Seeds",
+      "category": "Seeds",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 5200,
+      "mrpPaise": 9400,
+      "volatile": false
+    },
+    {
+      "product": "Sunflower Seeds",
+      "category": "Seeds",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 9800,
+      "mrpPaise": 17600,
+      "volatile": false
+    },
+    {
+      "product": "Sunflower Seeds",
+      "category": "Seeds",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 19200,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Basil Seeds",
+      "category": "Seeds",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 4000,
+      "mrpPaise": 7200,
+      "volatile": false
+    },
+    {
+      "product": "Basil Seeds",
+      "category": "Seeds",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 8200,
+      "mrpPaise": 14800,
+      "volatile": false
+    },
+    {
+      "product": "Basil Seeds",
+      "category": "Seeds",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 13600,
+      "mrpPaise": 24500,
+      "volatile": false
+    },
+    {
+      "product": "Basil Seeds",
+      "category": "Seeds",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 26500,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Pumpkin Seeds",
+      "category": "Seeds",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 8500,
+      "mrpPaise": 15300,
+      "volatile": true
+    },
+    {
+      "product": "Pumpkin Seeds",
+      "category": "Seeds",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 21200,
+      "mrpPaise": 38200,
+      "volatile": true
+    },
+    {
+      "product": "Pumpkin Seeds",
+      "category": "Seeds",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 42400,
+      "mrpPaise": 76300,
+      "volatile": true
+    },
+    {
+      "product": "Pumpkin Seeds",
+      "category": "Seeds",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 84800,
+      "mrpPaise": null,
+      "volatile": true
+    },
+    {
+      "product": "White Sesame (Jar)",
+      "category": "Seeds",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 1900,
+      "mrpPaise": 3400,
+      "volatile": false
+    },
+    {
+      "product": "White Sesame (Jar)",
+      "category": "Seeds",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 4700,
+      "mrpPaise": 8500,
+      "volatile": false
+    },
+    {
+      "product": "White Sesame (Jar)",
+      "category": "Seeds",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 9400,
+      "mrpPaise": 16900,
+      "volatile": false
+    },
+    {
+      "product": "White Sesame (Jar)",
+      "category": "Seeds",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 18800,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Black Sesame",
+      "category": "Seeds",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 4200,
+      "mrpPaise": 7600,
+      "volatile": false
+    },
+    {
+      "product": "Black Sesame",
+      "category": "Seeds",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 8700,
+      "mrpPaise": 15700,
+      "volatile": false
+    },
+    {
+      "product": "Black Sesame",
+      "category": "Seeds",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 16900,
+      "mrpPaise": 30400,
+      "volatile": false
+    },
+    {
+      "product": "Black Sesame",
+      "category": "Seeds",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 33000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Quinoa",
+      "category": "Seeds",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 2100,
+      "mrpPaise": 3800,
+      "volatile": false
+    },
+    {
+      "product": "Quinoa",
+      "category": "Seeds",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 3700,
+      "mrpPaise": 6700,
+      "volatile": false
+    },
+    {
+      "product": "Quinoa",
+      "category": "Seeds",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 6500,
+      "mrpPaise": 11700,
+      "volatile": false
+    },
+    {
+      "product": "Quinoa",
+      "category": "Seeds",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 12800,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Mix Roasted Seeds",
+      "category": "Seeds",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 6300,
+      "mrpPaise": 11300,
+      "volatile": false
+    },
+    {
+      "product": "Mix Roasted Seeds",
+      "category": "Seeds",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 15700,
+      "mrpPaise": 28300,
+      "volatile": false
+    },
+    {
+      "product": "Mix Roasted Seeds",
+      "category": "Seeds",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 31400,
+      "mrpPaise": 56500,
+      "volatile": false
+    },
+    {
+      "product": "Mix Roasted Seeds",
+      "category": "Seeds",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 62800,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Watermelon Seeds",
+      "category": "Seeds",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 9200,
+      "mrpPaise": 16600,
+      "volatile": false
+    },
+    {
+      "product": "Watermelon Seeds",
+      "category": "Seeds",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 21600,
+      "mrpPaise": 38900,
+      "volatile": false
+    },
+    {
+      "product": "Watermelon Seeds",
+      "category": "Seeds",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 42500,
+      "mrpPaise": 76500,
+      "volatile": false
+    },
+    {
+      "product": "Watermelon Seeds",
+      "category": "Seeds",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 83000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Bajra",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 5400,
+      "mrpPaise": 9700,
+      "volatile": false
+    },
+    {
+      "product": "Jau (Barley)",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 5400,
+      "mrpPaise": 9700,
+      "volatile": false
+    },
+    {
+      "product": "Rajgiri",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 13200,
+      "mrpPaise": 23800,
+      "volatile": false
+    },
+    {
+      "product": "Kuttu",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 10200,
+      "mrpPaise": 18400,
+      "volatile": false
+    },
+    {
+      "product": "Jowar",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 6000,
+      "mrpPaise": 10800,
+      "volatile": false
+    },
+    {
+      "product": "Multigrain",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 6600,
+      "mrpPaise": 11900,
+      "volatile": false
+    },
+    {
+      "product": "Singada",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 15000,
+      "mrpPaise": 27000,
+      "volatile": false
+    },
+    {
+      "product": "Makka (Maize)",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 5040,
+      "mrpPaise": 9100,
+      "volatile": false
+    },
+    {
+      "product": "Wheat Daliya",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 6000,
+      "mrpPaise": 10800,
+      "volatile": false
+    },
+    {
+      "product": "Makka Daliya",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 5040,
+      "mrpPaise": 9100,
+      "volatile": false
+    },
+    {
+      "product": "Jau Sattu",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 7200,
+      "mrpPaise": 13000,
+      "volatile": false
+    },
+    {
+      "product": "Chana Sattu",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 14400,
+      "mrpPaise": 25900,
+      "volatile": false
+    },
+    {
+      "product": "Rice",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 5040,
+      "mrpPaise": 9100,
+      "volatile": false
+    },
+    {
+      "product": "Diabetic",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 6000,
+      "mrpPaise": 10800,
+      "volatile": false
+    },
+    {
+      "product": "Ragi",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 6240,
+      "mrpPaise": 11200,
+      "volatile": false
+    },
+    {
+      "product": "Soyabean",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 9600,
+      "mrpPaise": 17300,
+      "volatile": false
+    },
+    {
+      "product": "Quinoa",
+      "category": "Flours",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "KG",
+      "currentPaise": 15600,
+      "mrpPaise": 28100,
+      "volatile": false
+    },
+    {
+      "product": "Turmeric Powder (Haldi)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 3900,
+      "mrpPaise": 7000,
+      "volatile": false
+    },
+    {
+      "product": "Turmeric Powder (Haldi)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 9800,
+      "mrpPaise": 17600,
+      "volatile": false
+    },
+    {
+      "product": "Turmeric Powder (Haldi)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 19600,
+      "mrpPaise": 35300,
+      "volatile": false
+    },
+    {
+      "product": "Turmeric Powder (Haldi)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 39200,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Red Chili Powder",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 4300,
+      "mrpPaise": 7700,
+      "volatile": false
+    },
+    {
+      "product": "Red Chili Powder",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 10800,
+      "mrpPaise": 19400,
+      "volatile": false
+    },
+    {
+      "product": "Red Chili Powder",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 21700,
+      "mrpPaise": 39100,
+      "volatile": false
+    },
+    {
+      "product": "Red Chili Powder",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 43400,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Coriander Powder (Dhania)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 3400,
+      "mrpPaise": 6100,
+      "volatile": false
+    },
+    {
+      "product": "Coriander Powder (Dhania)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 8400,
+      "mrpPaise": 15100,
+      "volatile": false
+    },
+    {
+      "product": "Coriander Powder (Dhania)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 16800,
+      "mrpPaise": 30200,
+      "volatile": false
+    },
+    {
+      "product": "Coriander Powder (Dhania)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 33600,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Cumin Powder (Jeera)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 4200,
+      "mrpPaise": 7600,
+      "volatile": false
+    },
+    {
+      "product": "Cumin Powder (Jeera)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 10500,
+      "mrpPaise": 18900,
+      "volatile": false
+    },
+    {
+      "product": "Cumin Powder (Jeera)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 21000,
+      "mrpPaise": 37800,
+      "volatile": false
+    },
+    {
+      "product": "Cumin Powder (Jeera)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 42000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Black Pepper Powder",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 13300,
+      "mrpPaise": 23900,
+      "volatile": false
+    },
+    {
+      "product": "Black Pepper Powder",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 33200,
+      "mrpPaise": 59800,
+      "volatile": false
+    },
+    {
+      "product": "Black Pepper Powder",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 66500,
+      "mrpPaise": 119700,
+      "volatile": false
+    },
+    {
+      "product": "Black Pepper Powder",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 133000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Garam Masala",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 11200,
+      "mrpPaise": 20200,
+      "volatile": false
+    },
+    {
+      "product": "Garam Masala",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 28000,
+      "mrpPaise": 50400,
+      "volatile": false
+    },
+    {
+      "product": "Garam Masala",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 56000,
+      "mrpPaise": 100800,
+      "volatile": false
+    },
+    {
+      "product": "Garam Masala",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 112000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Amchur Powder",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 3500,
+      "mrpPaise": 6300,
+      "volatile": false
+    },
+    {
+      "product": "Amchur Powder",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 8800,
+      "mrpPaise": 15800,
+      "volatile": false
+    },
+    {
+      "product": "Amchur Powder",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 17500,
+      "mrpPaise": 31500,
+      "volatile": false
+    },
+    {
+      "product": "Amchur Powder",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 35000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Cumin Seeds (Jeera)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 3800,
+      "mrpPaise": 6800,
+      "volatile": false
+    },
+    {
+      "product": "Cumin Seeds (Jeera)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 9400,
+      "mrpPaise": 16900,
+      "volatile": false
+    },
+    {
+      "product": "Cumin Seeds (Jeera)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 18900,
+      "mrpPaise": 34000,
+      "volatile": false
+    },
+    {
+      "product": "Cumin Seeds (Jeera)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 37800,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Whole Coriander (Dhania Sabut)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 3200,
+      "mrpPaise": 5800,
+      "volatile": false
+    },
+    {
+      "product": "Whole Coriander (Dhania Sabut)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 8000,
+      "mrpPaise": 14400,
+      "volatile": false
+    },
+    {
+      "product": "Whole Coriander (Dhania Sabut)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 16100,
+      "mrpPaise": 29000,
+      "volatile": false
+    },
+    {
+      "product": "Whole Coriander (Dhania Sabut)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 32200,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Mustard Seeds (Rai)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 1800,
+      "mrpPaise": 3200,
+      "volatile": false
+    },
+    {
+      "product": "Mustard Seeds (Rai)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 4600,
+      "mrpPaise": 8300,
+      "volatile": false
+    },
+    {
+      "product": "Mustard Seeds (Rai)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 9100,
+      "mrpPaise": 16400,
+      "volatile": false
+    },
+    {
+      "product": "Mustard Seeds (Rai)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 18200,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Fennel Seeds (Saunf)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 5200,
+      "mrpPaise": 9400,
+      "volatile": false
+    },
+    {
+      "product": "Fennel Seeds (Saunf)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 13000,
+      "mrpPaise": 23400,
+      "volatile": false
+    },
+    {
+      "product": "Fennel Seeds (Saunf)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 25900,
+      "mrpPaise": 46600,
+      "volatile": false
+    },
+    {
+      "product": "Fennel Seeds (Saunf)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 51800,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Fenugreek Seeds (Methi Dana)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 1400,
+      "mrpPaise": 2500,
+      "volatile": false
+    },
+    {
+      "product": "Fenugreek Seeds (Methi Dana)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 3500,
+      "mrpPaise": 6300,
+      "volatile": false
+    },
+    {
+      "product": "Fenugreek Seeds (Methi Dana)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 7000,
+      "mrpPaise": 12600,
+      "volatile": false
+    },
+    {
+      "product": "Fenugreek Seeds (Methi Dana)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 14000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Whole Black Pepper",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 11900,
+      "mrpPaise": 21400,
+      "volatile": false
+    },
+    {
+      "product": "Whole Black Pepper",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 29800,
+      "mrpPaise": 53600,
+      "volatile": false
+    },
+    {
+      "product": "Whole Black Pepper",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 59500,
+      "mrpPaise": 107100,
+      "volatile": false
+    },
+    {
+      "product": "Whole Black Pepper",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 119000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Black Cardamom (Badi Elaichi)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 30800,
+      "mrpPaise": 55400,
+      "volatile": false
+    },
+    {
+      "product": "Black Cardamom (Badi Elaichi)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 77000,
+      "mrpPaise": 138600,
+      "volatile": false
+    },
+    {
+      "product": "Black Cardamom (Badi Elaichi)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 154000,
+      "mrpPaise": 277200,
+      "volatile": false
+    },
+    {
+      "product": "Black Cardamom (Badi Elaichi)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 308000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Cloves (Laung)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 12600,
+      "mrpPaise": 22700,
+      "volatile": false
+    },
+    {
+      "product": "Cloves (Laung)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 31500,
+      "mrpPaise": 56700,
+      "volatile": false
+    },
+    {
+      "product": "Cloves (Laung)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 63000,
+      "mrpPaise": 113400,
+      "volatile": false
+    },
+    {
+      "product": "Cloves (Laung)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 126000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Cinnamon Normal (Dalchini)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 4200,
+      "mrpPaise": 7600,
+      "volatile": false
+    },
+    {
+      "product": "Cinnamon Normal (Dalchini)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 10500,
+      "mrpPaise": 18900,
+      "volatile": false
+    },
+    {
+      "product": "Cinnamon Normal (Dalchini)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 21000,
+      "mrpPaise": 37800,
+      "volatile": false
+    },
+    {
+      "product": "Cinnamon Normal (Dalchini)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 42000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Cinnamon Thin/Cigarette",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 6300,
+      "mrpPaise": 11300,
+      "volatile": false
+    },
+    {
+      "product": "Cinnamon Thin/Cigarette",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 15800,
+      "mrpPaise": 28400,
+      "volatile": false
+    },
+    {
+      "product": "Cinnamon Thin/Cigarette",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 31500,
+      "mrpPaise": 56700,
+      "volatile": false
+    },
+    {
+      "product": "Cinnamon Thin/Cigarette",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 63000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Bay Leaves (Tej Patta)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 2000,
+      "mrpPaise": 3600,
+      "volatile": false
+    },
+    {
+      "product": "Bay Leaves (Tej Patta)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 4900,
+      "mrpPaise": 8800,
+      "volatile": false
+    },
+    {
+      "product": "Bay Leaves (Tej Patta)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 9800,
+      "mrpPaise": 17600,
+      "volatile": false
+    },
+    {
+      "product": "Bay Leaves (Tej Patta)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 19600,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Dried Red Chili",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 5300,
+      "mrpPaise": 9500,
+      "volatile": false
+    },
+    {
+      "product": "Dried Red Chili",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 13300,
+      "mrpPaise": 23900,
+      "volatile": false
+    },
+    {
+      "product": "Dried Red Chili",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 26600,
+      "mrpPaise": 47900,
+      "volatile": false
+    },
+    {
+      "product": "Dried Red Chili",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 53200,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Carom Seeds (Ajwain)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 3800,
+      "mrpPaise": 6800,
+      "volatile": false
+    },
+    {
+      "product": "Carom Seeds (Ajwain)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 9400,
+      "mrpPaise": 16900,
+      "volatile": false
+    },
+    {
+      "product": "Carom Seeds (Ajwain)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 18900,
+      "mrpPaise": 34000,
+      "volatile": false
+    },
+    {
+      "product": "Carom Seeds (Ajwain)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 37800,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Nigella Seeds (Kalonji)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 3500,
+      "mrpPaise": 6300,
+      "volatile": false
+    },
+    {
+      "product": "Nigella Seeds (Kalonji)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 8800,
+      "mrpPaise": 15800,
+      "volatile": false
+    },
+    {
+      "product": "Nigella Seeds (Kalonji)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 17500,
+      "mrpPaise": 31500,
+      "volatile": false
+    },
+    {
+      "product": "Nigella Seeds (Kalonji)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 35000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Star Anise (Chakra Phool)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 9800,
+      "mrpPaise": 17600,
+      "volatile": false
+    },
+    {
+      "product": "Star Anise (Chakra Phool)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 24500,
+      "mrpPaise": 44100,
+      "volatile": false
+    },
+    {
+      "product": "Star Anise (Chakra Phool)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 49000,
+      "mrpPaise": 88200,
+      "volatile": false
+    },
+    {
+      "product": "Star Anise (Chakra Phool)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 98000,
+      "mrpPaise": null,
+      "volatile": false
+    },
+    {
+      "product": "Nutmeg (Jaiphal)",
+      "category": "Spices",
+      "packLabel": "100g",
+      "packGrams": 100,
+      "unit": "G",
+      "currentPaise": 1300,
+      "mrpPaise": 2300,
+      "volatile": false
+    },
+    {
+      "product": "Nutmeg (Jaiphal)",
+      "category": "Spices",
+      "packLabel": "250g",
+      "packGrams": 250,
+      "unit": "G",
+      "currentPaise": 3100,
+      "mrpPaise": 5600,
+      "volatile": false
+    },
+    {
+      "product": "Nutmeg (Jaiphal)",
+      "category": "Spices",
+      "packLabel": "500g",
+      "packGrams": 500,
+      "unit": "G",
+      "currentPaise": 6300,
+      "mrpPaise": 11300,
+      "volatile": false
+    },
+    {
+      "product": "Nutmeg (Jaiphal)",
+      "category": "Spices",
+      "packLabel": "1kg",
+      "packGrams": 1000,
+      "unit": "G",
+      "currentPaise": 12600,
+      "mrpPaise": null,
+      "volatile": false
+    }
+  ]
+}
