@@ -1,6 +1,8 @@
 import { and, desc, eq, ilike, isNull, or } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { distributorLeads } from '@/server/db/schema/crm';
+import { territories } from '@/server/db/schema/territory';
+import { employees } from '@/server/db/schema/identity';
 import { leadSchema, scoreInputsSchema } from '@/lib/schemas';
 import { assertCan } from '@/server/auth/permissions';
 import { getConfig } from './config';
@@ -103,6 +105,45 @@ export async function listLeads(orgId: string, opts: {
   return db.select().from(distributorLeads).where(and(...conds))
     .orderBy(desc(distributorLeads.updatedAt))
     .limit(opts.limit ?? 50).offset(opts.offset ?? 0);
+}
+
+/** Read model for the pipeline Kanban board — one row per open lead, joins resolved,
+ *  `nextFollowUpAt` serialized to an ISO string so it crosses the RSC → client boundary. */
+export type BoardLead = {
+  id: string;
+  businessName: string;
+  territoryName: string | null;
+  expectedFfMonthlyPotential: number;
+  score: number;
+  grade: string;
+  probability: number;
+  stage: LeadStage;
+  nextFollowUpAt: string | null;
+  assignee: string | null;
+};
+
+export async function boardLeads(orgId: string): Promise<BoardLead[]> {
+  const rows = await db.select({
+    id: distributorLeads.id,
+    businessName: distributorLeads.businessName,
+    territoryName: territories.name,
+    expectedFfMonthlyPotential: distributorLeads.expectedFfMonthlyPotential,
+    score: distributorLeads.score,
+    grade: distributorLeads.grade,
+    probability: distributorLeads.probability,
+    stage: distributorLeads.stage,
+    nextFollowUpAt: distributorLeads.nextFollowUpAt,
+    assignee: employees.name,
+  }).from(distributorLeads)
+    .leftJoin(territories, eq(territories.id, distributorLeads.territoryId))
+    .leftJoin(employees, eq(employees.id, distributorLeads.assignedEmployeeId))
+    .where(and(eq(distributorLeads.orgId, orgId), isNull(distributorLeads.deletedAt)));
+
+  return rows.map((r) => ({
+    ...r,
+    stage: r.stage as LeadStage,
+    nextFollowUpAt: r.nextFollowUpAt ? r.nextFollowUpAt.toISOString() : null,
+  }));
 }
 
 export async function getLead(orgId: string, id: string): Promise<LeadRow | null> {

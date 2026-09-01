@@ -460,3 +460,60 @@ One entry per completed task: what shipped, files touched, tests run + result, s
   `LeadInput`. (4) Server-action POSTs still not exercisable by `curl` (Next flight wire
   format); covered by vitest + the direct-service dev check above.
 - No new ponytail debt.
+
+## 2026-09-01 — Task 15: Pipeline Kanban board — drag-to-restage + weighted column totals
+
+- `src/server/services/lead.ts`: new `boardLeads(orgId): Promise<BoardLead[]>` — the read
+  model for the board. `distributorLeads` LEFT JOIN `territories` LEFT JOIN `employees`,
+  select `id, businessName, territoryName, expectedFfMonthlyPotential, score, grade,
+  probability, stage, nextFollowUpAt, assignee`, filtered `orgId` + `deletedAt IS NULL`;
+  serializes `nextFollowUpAt` to an ISO string (or null) so the row crosses the RSC →
+  client boundary as-is. New exported `type BoardLead`. **R3 compliance:** the join lives
+  in the service, NOT in `pipeline/page.tsx` — the page has no `db` import.
+- `src/app/(app)/pipeline/page.tsx` (replaces placeholder): server component — `requireUser()`,
+  `boardLeads(user.orgId)`, renders `<Board stages={OPEN} leads={leads} />` where
+  `OPEN = STAGES.filter(s => s !== 'LOST' && s !== 'ON_HOLD')` (12 columns). Deliberately
+  NOT `OPEN_STAGES` from `domain/pipeline.ts` (that also drops `REPEAT_ORDER`).
+- `src/app/(app)/pipeline/actions.ts`: `'use server'` `moveLeadAction(leadId, stage)` —
+  `requireUser()`; `stage === 'LOST' || 'ON_HOLD'` → `{ error: 'open-detail' as const }`
+  (board has no such column, those need a reason); else
+  `try { setStage(user, leadId, stage); revalidatePath('/pipeline'); return { ok: true } }
+  catch (e) { return { error: e.message } }`.
+- `src/app/(app)/pipeline/board.tsx`: `'use client'`. `Board` = `@dnd-kit/core` `DndContext`
+  (with a `PointerSensor` distance-4 activation constraint so a plain click still opens the
+  card's `<Link>`), one `Column` (`useDroppable`, keyed by stage id) per stage, `Card`
+  (`useDraggable`, keyed by lead id). Column header: `count · formatINR(Σ
+  weightedPipelineValue(potential, probability))`. Card: business name → `/leads/{id}`,
+  territory, potential, `score · grade`, `probability%`, follow-up date (red when null or
+  past), assignee. `onDragEnd`: no-op if same column; else optimistic `setItems` + await
+  `moveLeadAction`; on `{ error }` revert, and if `error === 'open-detail'`
+  `router.push('/leads/{id}')`. `BoardLead` has ONE definition (in `lead.ts`);
+  `board.tsx` does `import type` + `export type { BoardLead }`.
+- `tests/e2e/lead-pipeline.spec.ts`: written per brief, wrapped `test.describe.skip('lead
+  pipeline', …)` + `// ponytail:` note — no local Supabase Auth server in this env (same
+  reason auth/nav specs are skipped). Real gate is the Vitest spec below.
+- TDD: `tests/services/pipeline.test.ts` — RED first (`Cannot find package
+  '@/app/(app)/pipeline/actions'`), then GREEN 3/3: (1) `boardLeads` returns two leads with
+  joined `territoryName='North Zone'` / `assignee='Priya Rao'`, moved lead's
+  `stage='NEGOTIATION'` + `probability=60`, unmoved lead's joins `null` +
+  `stage='IDENTIFIED'`; (2) `boardLeads` excludes a soft-deleted lead; (3) `moveLeadAction`
+  with `stage='LOST'` (mocked `requireUser`) returns `{ error: 'open-detail' }` and leaves
+  `getLead(...).stage === 'IDENTIFIED'`.
+- Tests: `npm test -- pipeline` → 2 files / 7 passed (incl. `tests/domain/pipeline.test.ts`).
+  Full `npm test` → 15 files / 40 passed, run twice, stable. `npx tsc --noEmit` clean.
+  `npm run lint` clean.
+- Dev check (`next dev` already on :3000, dev-login hatch): `/pipeline` renders 12 columns,
+  the 6 dev leads land in their stages (IDENTIFIED/CONTACTED/QUALIFIED/MEETING_SCHEDULED/
+  PRESENTATION_DONE/NEGOTIATION), weighted header totals correct (e.g. NEGOTIATION
+  `1 · ₹2,70,000.00` = 4,50,000 × 60%). Drag gesture itself needs a browser driver (not
+  available for the auth-gated page — same gap the skipped e2e covers); drove the data
+  chain instead: `setStage` (what `moveLeadAction` calls) IDENTIFIED→CONTACTED, a fresh
+  `boardLeads` read ("after reload") showed `CONTACTED`/prob 10, then restored to
+  `IDENTIFIED`/prob 5.
+- Deviations: (1) `boardLeads` serializes `nextFollowUpAt` inside the service (so the
+  `Promise<BoardLead[]>` signature is honest) rather than the page mapping rows — the page
+  is a pass-through. (2) `page.tsx` uses a local `OPEN` (STAGES minus LOST/ON_HOLD) not the
+  existing `OPEN_STAGES` export, per the task's explicit column list.
+- Ponytail debt: extended the e2e-skip row (adds `lead-pipeline.spec.ts`); +2 rows —
+  deferred inline lost-reason modal (board routes LOST/ON_HOLD to the detail page), and
+  `Board`'s `useState(leads)` not reconciling with revalidated props until a full reload.
