@@ -1,8 +1,10 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { requireUser } from '@/server/auth/session';
 import { updateLead, rescoreLead, setStage } from '@/server/services/lead';
 import { addActivity } from '@/server/services/activity';
+import { convertLead } from '@/server/services/distributor';
 import { rupees } from '@/domain/money';
 import { STAGES, type LeadStage } from '@/domain/pipeline';
 import { ACTIVITY_TYPES, LOST_REASONS } from '@/lib/schemas';
@@ -62,4 +64,25 @@ export async function logActivity(id: string, formData: FormData) {
     nextFollowUpAt: next ? new Date(String(next)) : null,
   });
   revalidatePath(`/leads/${id}`);
+}
+
+export async function convertToDistributor(id: string, formData: FormData) {
+  const user = await requireUser();
+  try {
+    const d = await convertLead(user, id, {
+      territoryId: (formData.get('territoryId') || null) as string | null,
+      exclusive: formData.get('exclusive') === 'on',
+      assignedEmployeeId: (formData.get('assignedEmployeeId') || null) as string | null,
+      creditLimit: rupees(Number(formData.get('creditLimit') ?? 0)),
+      creditDays: Number(formData.get('creditDays') ?? 0),
+      paymentTerms: String(formData.get('paymentTerms') ?? ''),
+      expectedMonthlyPurchase: rupees(Number(formData.get('expectedMonthlyPurchase') ?? 0)),
+      overrideReason: String(formData.get('overrideReason') ?? ''),
+    });
+    redirect(`/distributors/${d.id}`);
+  } catch (e) {
+    if (e instanceof Error && e.message === 'EXCLUSIVITY_CONFLICT') return { error: 'EXCLUSIVITY_CONFLICT' as const };
+    if (e instanceof Error && e.message === 'EXCLUSIVITY_OVERRIDE_REQUIRES_OWNER') return { error: 'OWNER_ONLY' as const };
+    throw e;
+  }
 }
