@@ -199,6 +199,83 @@ test.describe('OWNER smoke sweep', () => {
     await assertNoServerError(page);
   });
 
+  // M2b sweep: convert an appointed lead → distributor, build + submit a quotation
+  // (one auto line, one below-target line), approve the price request, add a scheme.
+  test('m2b: convert lead → quotation → price approval → scheme', async ({ page }) => {
+    const stamp = Date.now();
+
+    // ── 1. convert a demo APPROVED/APPOINTED lead with no conversion yet ────────
+    await page.goto('/leads');
+    await assertNoServerError(page);
+    // Prime Retail Distributors is seeded at stage APPROVED and is never converted
+    // by seedDemo (it only converts Ashirwad + Coastal), so its Convert panel shows.
+    await page.getByRole('link', { name: 'Prime Retail Distributors' }).click();
+    await expect(page).toHaveURL(/\/leads\/[0-9a-f-]{36}$/);
+    await assertNoServerError(page);
+
+    await expect(page.getByRole('heading', { name: 'Convert to Distributor' })).toBeVisible();
+    await page.getByLabel('Territory').selectOption({ index: 1 });
+    await page.getByLabel('Credit limit (₹)').fill('150000');
+    await page.getByLabel('Credit days').fill('15');
+    await page.getByLabel('Payment terms').fill(`Net 15 (smoke ${stamp})`);
+    await page.getByRole('button', { name: 'Convert to Distributor' }).click();
+    await expect(page).toHaveURL(/\/distributors\/[0-9a-f-]{36}$/);
+    await assertNoServerError(page);
+
+    // ── 2. new quotation for the demo distributor: one at/above target ─────────
+    await page.goto('/quotations');
+    await assertNoServerError(page);
+    await page.getByRole('link', { name: 'New quotation' }).click();
+    await expect(page).toHaveURL(/\/quotations\/new$/);
+
+    await page.getByLabel('Party').selectOption({ label: 'Coastal Trading Company' });
+    await page.getByLabel('Valid until').fill('2026-12-31');
+    await page.getByLabel('Product').selectOption({ index: 1 });
+    await page.getByLabel('Qty').fill('20');
+    // leave the auto-filled rate (distributor price) — it sits at/above target → AUTO
+    await page.getByRole('button', { name: 'Create quotation' }).click();
+    await expect(page).toHaveURL(/\/quotations\/[0-9a-f-]{36}$/);
+    await assertNoServerError(page);
+
+    await page.getByRole('button', { name: 'Submit quotation' }).click();
+    await assertNoServerError(page);
+    await expect(page.getByText(/·\s*SENT\s*·/)).toBeVisible();
+
+    // ── 3. below-target quotation line → price approval → approve ──────────────
+    await page.goto('/quotations/new');
+    await page.getByLabel('Party').selectOption({ label: 'Coastal Trading Company' });
+    await page.getByLabel('Valid until').fill('2026-12-31');
+    await page.getByLabel('Product').selectOption({ index: 1 });
+    await page.getByLabel('Qty').fill('10');
+    const autoRate = await page.getByLabel('Rate (₹)').inputValue();
+    // knock the rate down ~15% so it lands between floor and target → PENDING
+    await page.getByLabel('Rate (₹)').fill((Number(autoRate) * 0.85).toFixed(2));
+    await page.getByRole('button', { name: 'Create quotation' }).click();
+    await expect(page).toHaveURL(/\/quotations\/[0-9a-f-]{36}$/);
+    await assertNoServerError(page);
+    await page.getByRole('button', { name: 'Submit quotation' }).click();
+    await assertNoServerError(page);
+
+    await page.goto('/approvals');
+    await assertNoServerError(page);
+    await page.getByRole('button', { name: 'Approve' }).first().click();
+    await assertNoServerError(page);
+    await expect(page.getByText('No price approvals waiting.')).toBeVisible();
+
+    // ── 4. add a FLAT_DISCOUNT / PCT scheme ───────────────────────────────────
+    await page.goto('/schemes');
+    await assertNoServerError(page);
+    const schemeName = `Smoke Flat 3% ${stamp}`;
+    await page.getByLabel('Name').fill(schemeName);
+    await page.getByLabel('Type').selectOption({ label: 'FLAT_DISCOUNT' });
+    await page.getByLabel('Start date').fill('2026-09-01');
+    await page.getByLabel('End date').fill('2026-12-31');
+    await page.getByLabel('Benefit (percent)').fill('3');
+    await page.getByRole('button', { name: 'Create scheme' }).click();
+    await assertNoServerError(page);
+    await expect(page.getByRole('cell', { name: schemeName })).toBeVisible();
+  });
+
   // NOTE: "Purge demo data" is intentionally NOT exercised here — it is destructive
   // (wipes every is_demo row) and would break a repeatable smoke run. It is covered at
   // the service layer by tests/services/seed.test.ts (seedDemo / purgeDemo / hasDemoData),

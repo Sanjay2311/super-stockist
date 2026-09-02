@@ -1,8 +1,12 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from './client';
 import { orgs, brands } from './schema/identity';
 import { territories } from './schema/territory';
 import { distributorLeads, activities, tasks } from './schema/crm';
+import { distributors } from './schema/distributor';
+import { schemes, schemeApplications } from './schema/scheme';
+import { quotations, quotationItems, priceApprovals } from './schema/quotation';
+import { categories, products, productPrices } from './schema/product';
 import { scoreDistributor, type ScoreInputs, type ScoreWeights } from '@/domain/scoring';
 import { CONFIG_DEFAULTS } from '@/server/services/config';
 import { stageRank, type LeadStage } from '@/domain/pipeline';
@@ -188,17 +192,120 @@ export async function seedDemo(): Promise<void> {
     })),
   );
 
+  // ── M2b demo: distributors, schemes, one quotation ──────────────────────────
+  // Requires the catalogue (categories / products / product_prices) to already
+  // be seeded — the CLI runs seedCatalogue() ahead of seedDemo(). Every row here
+  // carries `isDemo: true` so purgeDemo() removes it. Rows are inserted directly
+  // with the Drizzle client (no service calls — there is no AppUser here).
+
+  // two distributors converted from the appointed / first-order demo leads
+  const ashirwad = leadRows[16]; // APPOINTED
+  const coastal = leadRows[17];  // FIRST_ORDER
+  const distRows = await db.insert(distributors).values([
+    {
+      orgId, businessName: ashirwad.businessName, contactPerson: ashirwad.contactPerson,
+      phone: ashirwad.phone, address: ashirwad.address, territoryId: ashirwad.territoryId,
+      exclusive: true, assignedEmployeeId: ashirwad.assignedEmployeeId, appointmentDate: ymd(daysFromNow(-20)),
+      status: 'ACTIVE', grade: ashirwad.grade, creditLimit: rupees(2_00_000), creditDays: 21,
+      paymentTerms: '50% advance, balance on delivery', expectedMonthlyPurchase: rupees(6_00_000),
+      sourceLeadId: ashirwad.id, isDemo: true,
+    },
+    {
+      orgId, businessName: coastal.businessName, contactPerson: coastal.contactPerson,
+      phone: coastal.phone, address: coastal.address, territoryId: coastal.territoryId,
+      exclusive: false, assignedEmployeeId: coastal.assignedEmployeeId, appointmentDate: ymd(daysFromNow(-10)),
+      status: 'ACTIVE', grade: coastal.grade, creditLimit: rupees(1_50_000), creditDays: 15,
+      paymentTerms: 'Net 15', expectedMonthlyPurchase: rupees(5_00_000),
+      sourceLeadId: coastal.id, isDemo: true,
+    },
+  ]).returning();
+  await db.update(distributorLeads).set({ convertedDistributorId: distRows[0].id }).where(eq(distributorLeads.id, ashirwad.id));
+  await db.update(distributorLeads).set({ convertedDistributorId: distRows[1].id }).where(eq(distributorLeads.id, coastal.id));
+
+  // two schemes: a CATEGORY-scoped flat 3% on Dry Fruits, an ALL-scoped qty scheme
+  let schemeCount = 0;
+  const [dryFruits] = await db.select().from(categories)
+    .where(and(eq(categories.orgId, orgId), eq(categories.name, 'Dry Fruits')));
+  if (dryFruits) {
+    await db.insert(schemes).values([
+      {
+        orgId, name: 'September Dry Fruits 3%', type: 'FLAT_DISCOUNT', scopeType: 'CATEGORY', scopeId: dryFruits.id,
+        startDate: ymd(daysFromNow(-10)), endDate: ymd(daysFromNow(30)),
+        benefit: { kind: 'PCT', value: 3 }, eligibility: {}, active: true, isDemo: true,
+      },
+      {
+        orgId, name: 'Bulk 50+ units ₹5/unit', type: 'QTY_SCHEME', scopeType: 'ALL', scopeId: null,
+        startDate: ymd(daysFromNow(-30)), endDate: ymd(daysFromNow(60)), minQty: 50,
+        benefit: { kind: 'PER_UNIT', value: rupees(5) }, eligibility: {}, active: true, isDemo: true,
+      },
+    ]);
+    schemeCount = 2;
+  }
+
+  // one DRAFT quotation for the Coastal distributor: one AUTO line, one below-target line
+  let quotationCount = 0;
+  const priced = await db.select({ p: products, pr: productPrices }).from(products)
+    .innerJoin(productPrices, eq(productPrices.productId, products.id))
+    .where(eq(products.orgId, orgId)).limit(2);
+  if (priced.length === 2) {
+    const now = new Date();
+    const [qd] = await db.insert(quotations).values({
+      orgId, quoteNo: `Q-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}-001`,
+      distributorId: distRows[1].id, quoteDate: ymd(now), validUntil: ymd(daysFromNow(7)),
+      status: 'DRAFT', isDemo: true,
+    }).returning();
+    await db.insert(quotationItems).values([
+      {
+        orgId, quotationId: qd.id, productId: priced[0].p.id, qty: 20,
+        requestedRate: priced[0].pr.targetPrice, listRate: priced[0].pr.distributorPrice,
+        floorRate: priced[0].pr.floorPrice, targetRate: priced[0].pr.targetPrice,
+        gstPct: priced[0].p.gstPct, netAmount: 20 * priced[0].pr.targetPrice, approvalStatus: 'AUTO',
+      },
+      {
+        orgId, quotationId: qd.id, productId: priced[1].p.id, qty: 10,
+        requestedRate: priced[1].pr.floorPrice + 1, listRate: priced[1].pr.distributorPrice,
+        floorRate: priced[1].pr.floorPrice, targetRate: priced[1].pr.targetPrice,
+        gstPct: priced[1].p.gstPct, netAmount: 10 * (priced[1].pr.floorPrice + 1), approvalStatus: 'PENDING',
+      },
+    ]);
+    quotationCount = 1;
+  }
+
   console.log(
     `seedDemo: ${1 + areaRows.length} territories, ${leadRows.length} leads, ` +
-    `${activityRows.length} activities, ${TASKS.length} tasks`,
+    `${activityRows.length} activities, ${TASKS.length} tasks, ` +
+    `${distRows.length} distributors, ${schemeCount} schemes, ${quotationCount} quotation`,
   );
 }
 
-/** Delete this org's `is_demo` rows (activities → tasks → leads → territories). */
+/**
+ * Delete this org's `is_demo` rows (M2b quotations/schemes/distributors, then
+ * activities → tasks → leads → territories).
+ */
 export async function purgeDemo(orgId: string): Promise<void> {
   await db.delete(activities).where(and(eq(activities.orgId, orgId), eq(activities.isDemo, true)));
   await db.delete(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.isDemo, true)));
   await db.delete(distributorLeads).where(and(eq(distributorLeads.orgId, orgId), eq(distributorLeads.isDemo, true)));
+
+  // M2b demo rows. price_approvals / quotation_items FK their parents, so child-first.
+  const demoQuotes = await db.select({ id: quotations.id }).from(quotations)
+    .where(and(eq(quotations.orgId, orgId), eq(quotations.isDemo, true)));
+  const demoQuoteIds = demoQuotes.map((q) => q.id);
+  if (demoQuoteIds.length) {
+    const demoItems = await db.select({ id: quotationItems.id }).from(quotationItems)
+      .where(inArray(quotationItems.quotationId, demoQuoteIds));
+    const itemIds = demoItems.map((i) => i.id);
+    if (itemIds.length) {
+      await db.delete(priceApprovals).where(inArray(priceApprovals.quotationItemId, itemIds));
+      await db.delete(schemeApplications).where(inArray(schemeApplications.quotationItemId, itemIds));
+      await db.delete(quotationItems).where(inArray(quotationItems.quotationId, demoQuoteIds));
+    }
+    await db.delete(quotations).where(inArray(quotations.id, demoQuoteIds));
+  }
+  await db.delete(schemeApplications).where(and(eq(schemeApplications.orgId, orgId)));
+  await db.delete(schemes).where(and(eq(schemes.orgId, orgId), eq(schemes.isDemo, true)));
+  await db.delete(distributors).where(and(eq(distributors.orgId, orgId), eq(distributors.isDemo, true)));
+
   await db.delete(territories).where(and(eq(territories.orgId, orgId), eq(territories.isDemo, true)));
   console.log('purgeDemo: demo rows removed');
 }
@@ -207,7 +314,7 @@ if (process.argv[1]?.endsWith('seed.ts')) {
   const purge = process.argv.includes('--purge');
   const run = purge
     ? seedBase().then(({ orgId }) => purgeDemo(orgId))
-    : seedBase().then(async ({ orgId }) => { await seedDemo(); await seedCatalogue(orgId); });
+    : seedBase().then(async ({ orgId }) => { await seedCatalogue(orgId); await seedDemo(); });
   run
     .then(() => { console.log(purge ? 'purge done' : 'seed done'); process.exit(0); })
     .catch((e) => { console.error(e); process.exit(1); });

@@ -1477,3 +1477,75 @@ floor patch throws (I5). psql confirms the persisted row + exactly the 2 expecte
 audit rows.
 Shortcut: none beyond the two documented PONYTAIL-DEBT changes (I4 resolved; the
 regenerate always-skips-overrides ceiling, cleared by M3 per-price history).
+
+## 2026-09-02 — Milestone 2b complete (Distributors, Quotations, Schemes)
+
+One line per M2b task (briefs in
+`.superpowers/sdd/2026-09-01-super-stockist-milestone-2b-distributors-quotations/`):
+
+- **Task 1** — `distributors` schema + migration **0009**; real `overlapsExclusive`
+  (`select 1 from distributors where org_id=$1 and territory_id=$2 and exclusive and id<>$3`),
+  replacing the M1 stub — its PONYTAIL-DEBT row cleared.
+- **Task 2** — `distributor` service (`list` / `get` / `update`) with SALES cost
+  redaction (`DISTRIBUTOR_FINANCIAL_FIELDS` + `redactDistributor`) and
+  `distributor.*` permissions; audit on every mutation.
+- **Task 3** — `convertLead`: appointed/approved lead → distributor in one call —
+  inserts the distributor, sets `distributor_leads.converted_distributor_id`, bumps
+  the lead to APPOINTED (lead kept, funnel intact), records the exclusivity
+  override reason, fully audited; `ConvertLeadInput = z.input<...>`.
+- **Task 4** — Distributors screens (`/distributors` list + `/distributors/[id]`
+  detail with editable terms) + nav entry.
+- **Task 5** — Convert-to-Distributor panel on the lead detail page (territory +
+  credit fields, exclusivity-clash blocking banner, owner-only override w/ reason).
+- **Task 6** — `quotations` + `quotation_items` + `price_approvals` schema +
+  migration **0010** (lead XOR distributor hand-appended `quotations_party_ck`,
+  list/floor/target rate snapshots, `approval_status` enum).
+- **Task 7** — `quote` pure domain (`src/domain/quote.ts`): per-line taxable / GST
+  / discount / scheme / net math, `classifyRate` (`AUTO` / `NEEDS_APPROVAL` /
+  `BELOW_FLOOR`), `quoteTotals`.
+- **Task 8** — `scheme` pure domain (`src/domain/scheme.ts`): FLAT_DISCOUNT /
+  QTY_SCHEME / DISTRIBUTOR_INCENTIVE eligibility (date window + grade + min
+  qty/value) and benefit (`PCT` / `AMOUNT` / `PER_UNIT`) computation.
+- **Task 9** — `schemes` + `scheme_applications` schema + migration **0011** +
+  `scheme` service (`list` / `get` / `create` / `update`, `toSchemeDef` bridge).
+- **Task 10** — `quotation` service (`create` / `submit` / `approve` /
+  `setStatus`): multi-insert items with rate snapshots, `price_approvals` rows for
+  below-target lines, auto-apply eligible schemes, `redactQuotationItem`, audited.
+- **Task 11** — Quotation screens (list, builder at `/quotations/new`, detail with
+  Submit + WhatsApp/print) + Approvals queue at `/approvals` + nav entries.
+- **Task 12** — Schemes screen (`/schemes`) — table + create/edit form.
+- **Task 13** — demo seed + `purgeDemo` cleanup + smoke sweep + this log + debt rows
+  (detail below).
+
+### Task 13 detail
+
+- **`seedDemo`** (`src/server/db/seed.ts`) — after the catalogue is seeded (CLI now
+  runs `seedCatalogue()` before `seedDemo()`): 2 demo distributors converted from
+  the Ashirwad (APPOINTED, exclusive) and Coastal (FIRST_ORDER, non-exclusive)
+  demo leads, with `converted_distributor_id` set on those leads; 2 demo schemes
+  (a CATEGORY-scoped FLAT_DISCOUNT 3% on Dry Fruits, an ALL-scoped QTY_SCHEME
+  min-qty 50 → `PER_UNIT rupees(5)`); 1 DRAFT quotation for the Coastal distributor
+  with an at-target (`AUTO`) line and a just-above-floor (`PENDING`) line. Every row
+  carries `isDemo: true`. Summary `console.log` extended with the three counts.
+- **`purgeDemo`** — before the `territories` delete, removes M2b demo rows
+  child-first: `price_approvals` → `scheme_applications` → `quotation_items` →
+  `quotations` (isDemo) → `schemes` (isDemo) → `distributors` (isDemo); `inArray`
+  added to the drizzle import.
+- **`tests/e2e/smoke-owner.spec.ts`** — one new manual `test(...)`: convert an
+  un-converted APPROVED demo lead (Prime Retail) → assert `/distributors/<uuid>`;
+  build + submit a quotation for the demo distributor (at-target line) → assert
+  status `SENT`; build + submit a below-target line → `/approvals` → Approve → row
+  clears; create a FLAT_DISCOUNT/PCT scheme → appears in the table. Timestamped
+  names; not run here (needs a live dev server).
+- **Docs** — this entry + 7 PONYTAIL-DEBT rows (party CHECK, `quoteNo` allocator,
+  no line-item edit path, `DISTRIBUTOR_INCENTIVE` accrual, print chrome, row-by-row
+  totals, un-transacted multi-insert).
+- Tests: `npm test` → **36 files / 150 passed**, run twice, stable. `npx tsc
+  --noEmit`, `npm run lint`, `npm run build` all clean. Seed round-trip on
+  `devbrowse`: `db:seed --purge` → `db:seed` reports `2 distributors, 2 schemes,
+  1 quotation`; a second `--purge` leaves 0 rows in every M2b demo table (184
+  catalogue products untouched); restored with `db:seed`.
+- Shortcut: none beyond the 7 documented PONYTAIL-DEBT rows. The seed queries the
+  catalogue and guards (`if (dryFruits)` / `if (priced.length === 2)`) so a
+  catalogue-less `seedDemo()` (the unit tests) still inserts the distributors and
+  skips the scheme/quote rows without error.
