@@ -11,6 +11,8 @@ const NAV_ITEMS: Item[] = [
   { href: '/pipeline', label: 'Pipeline' },
   { href: '/leads', label: 'Leads' },
   { href: '/distributors', label: 'Distributors' },
+  { href: '/quotations', label: 'Quotations' },
+  { href: '/approvals', label: 'Approvals', ownerOnly: true },
   { href: '/territories', label: 'Territories' },
   { href: '/products', label: 'Products' },
   { href: '/daily-report', label: 'Daily Report' },
