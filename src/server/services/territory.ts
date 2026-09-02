@@ -1,6 +1,7 @@
-import { and, eq, isNull, asc } from 'drizzle-orm';
+import { and, eq, isNull, asc, inArray } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { territories } from '@/server/db/schema/territory';
+import { distributors } from '@/server/db/schema/distributor';
 import { territorySchema, type TerritoryInput } from '@/lib/schemas';
 import { patchOnly } from '@/lib/patch';
 import { assertCan } from '@/server/auth/permissions';
@@ -20,6 +21,19 @@ export async function listTerritories(orgId: string): Promise<TerritoryRow[]> {
     .orderBy(asc(territories.name));
 }
 
+// Like listTerritories but WITHOUT the `active` filter (soft-delete filter only).
+// The §13 exclusivity hierarchy must include deactivated intermediate nodes —
+// otherwise a deactivated area truncates the ancestor/descendant chain and a real
+// clash above or below it is missed. `listTerritories` (active-only) stays the UI
+// picker source; the exclusivity walk uses this.
+export async function allTerritories(orgId: string): Promise<TerritoryRow[]> {
+  return db
+    .select()
+    .from(territories)
+    .where(and(eq(territories.orgId, orgId), isNull(territories.deletedAt)))
+    .orderBy(asc(territories.name));
+}
+
 export async function territoryTree(orgId: string): Promise<TerritoryNode[]> {
   const rows = await listTerritories(orgId);
   const byId = new Map(rows.map((r) => [r.id, { ...r, children: [] as TerritoryNode[] }]));
@@ -32,7 +46,7 @@ export async function territoryTree(orgId: string): Promise<TerritoryNode[]> {
 }
 
 export async function descendantIds(orgId: string, territoryId: string): Promise<string[]> {
-  const rows = await listTerritories(orgId);
+  const rows = await allTerritories(orgId);
   const out: string[] = [];
   const stack = [territoryId];
   while (stack.length) {
@@ -48,7 +62,7 @@ export async function descendantIds(orgId: string, territoryId: string): Promise
 }
 
 export async function ancestorIds(orgId: string, territoryId: string): Promise<string[]> {
-  const rows = await listTerritories(orgId);
+  const rows = await allTerritories(orgId);
   const byId = new Map(rows.map((r) => [r.id, r]));
   const out: string[] = [];
   let cur = byId.get(territoryId)?.parentId ?? null;
@@ -88,15 +102,30 @@ export async function updateTerritory(
   return row;
 }
 
-// ponytail: exclusivity conflict detection needs the distributors table, which
-// does not exist until Milestone 2. Stub returns false so callers compile now;
-// real exclusivity check lands in M2 with the distributors table.
-/* eslint-disable @typescript-eslint/no-unused-vars */
+// spec §13: a territory clashes when another ACTIVE exclusive distributor holds a
+// territory that equals, contains (ancestor), or sits under (descendant) the target.
+const EXCLUSIVE_BLOCKING_STATUSES = ['APPROVED', 'ACTIVE'] as const;
+
 export async function overlapsExclusive(
   orgId: string,
   territoryId: string,
   excludeDistributorId?: string,
 ): Promise<boolean> {
-  return false;
+  const [anc, desc] = await Promise.all([
+    ancestorIds(orgId, territoryId),
+    descendantIds(orgId, territoryId),
+  ]);
+  const scope = new Set<string>([territoryId, ...anc, ...desc]);
+  const rows = await db
+    .select({ id: distributors.id, territoryId: distributors.territoryId })
+    .from(distributors)
+    .where(and(
+      eq(distributors.orgId, orgId),
+      isNull(distributors.deletedAt),
+      eq(distributors.exclusive, true),
+      inArray(distributors.status, [...EXCLUSIVE_BLOCKING_STATUSES]),
+    ));
+  return rows.some(
+    (d) => d.territoryId != null && scope.has(d.territoryId) && d.id !== excludeDistributorId,
+  );
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */

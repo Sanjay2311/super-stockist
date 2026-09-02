@@ -64,6 +64,27 @@
       "when": 1788255665470,
       "tag": "0008_product_price_override_by_text",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788282087950,
+      "tag": "0009_common_vermin",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788333361033,
+      "tag": "0010_yellow_loa",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788334190875,
+      "tag": "0011_violet_lightspeed",
+      "breakpoints": true
     }
   ]
 }

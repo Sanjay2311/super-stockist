@@ -97,6 +97,49 @@ export const productSchema = z.object({
   mrp: intGte0.nullable().optional(), // paise
 });
 
+// ── Distributor master (spec §4.4) ─────────────────────────────────────────
+export const DISTRIBUTOR_STATUSES = ['PROSPECT', 'APPROVED', 'ACTIVE', 'TEMP_INACTIVE', 'SUSPENDED', 'CLOSED'] as const;
+export const DISTRIBUTOR_GRADES = ['A', 'B', 'C'] as const;
+
+export const distributorSchema = z.object({
+  businessName: z.string().min(2).max(160),
+  contactPerson: z.string().min(2).max(120),
+  phone: z.string().regex(/^[6-9]\d{9}$/, 'Enter a 10-digit Indian mobile number'),
+  email: z.email().optional().or(z.literal('')),
+  address: z.string().max(400).optional().or(z.literal('')),
+  territoryId: z.uuid().nullable().optional(),
+  exclusive: z.boolean().optional(),
+  assignedEmployeeId: z.uuid().nullable().optional(),
+  status: z.enum(DISTRIBUTOR_STATUSES).optional(),
+  grade: z.enum(DISTRIBUTOR_GRADES).nullable().optional(),
+  creditLimit: z.coerce.number().int().min(0).optional(),            // paise
+  creditDays: z.coerce.number().int().min(0).max(365).optional(),
+  paymentTerms: z.string().max(200).optional().or(z.literal('')),
+  expectedMonthlyPurchase: z.coerce.number().int().min(0).optional(), // paise
+  // `review_date` is a Postgres `date` (string-mode) column — coerce the form
+  // value through a Date for validation, then hand the DB a 'YYYY-MM-DD' string.
+  reviewDate: z.coerce.date().nullable().optional()
+    .transform((d) => (d instanceof Date ? d.toISOString().slice(0, 10) : d)),
+  agreementStatus: z.string().max(80).optional().or(z.literal('')),
+  // not a column — signals an accepted §13 exclusivity override on updateDistributor
+  overrideReason: z.string().max(500).optional().or(z.literal('')),
+});
+export type DistributorInput = z.infer<typeof distributorSchema>;
+
+// Lead → distributor conversion form (spec §4.4). `.default()` on several fields
+// ⇒ the caller-facing type is `z.input`, not `z.infer`.
+export const convertLeadSchema = z.object({
+  territoryId: z.uuid().nullable().optional(),
+  exclusive: z.boolean().optional(),
+  assignedEmployeeId: z.uuid().nullable().optional(),
+  creditLimit: z.coerce.number().int().min(0).default(0),            // paise
+  creditDays: z.coerce.number().int().min(0).max(365).default(0),
+  paymentTerms: z.string().max(200).optional().or(z.literal('')),
+  expectedMonthlyPurchase: z.coerce.number().int().min(0).default(0), // paise
+  overrideReason: z.string().max(500).optional().or(z.literal('')),
+});
+export type ConvertLeadInput = z.input<typeof convertLeadSchema>;
+
 export const dailyReportSchema = z.object({
   reportDate: z.coerce.date(),
   areasVisited: z.array(z.string().max(120)).default([]),
@@ -104,3 +147,38 @@ export const dailyReportSchema = z.object({
   blockers: z.string().max(2000).optional().or(z.literal('')),
 });
 export type DailyReportInput = z.infer<typeof dailyReportSchema>;
+
+// ── Schemes (spec §4.6 / §30) ─────────────────────────────────────────────
+export const SCHEME_TYPES = ['FLAT_DISCOUNT', 'QTY_SCHEME', 'DISTRIBUTOR_INCENTIVE'] as const;
+export const SCHEME_SCOPES = ['PRODUCT', 'CATEGORY', 'ALL'] as const;
+export const SCHEME_BENEFIT_KINDS = ['PCT', 'AMOUNT', 'PER_UNIT'] as const;
+
+export const schemeSchema = z.object({
+  name: z.string().min(2).max(160),
+  type: z.enum(SCHEME_TYPES),
+  scopeType: z.enum(SCHEME_SCOPES),
+  scopeId: z.uuid().nullable().optional(),
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+  minQty: z.coerce.number().int().min(0).nullable().optional(),
+  minValue: z.coerce.number().int().min(0).nullable().optional(), // paise
+  benefitKind: z.enum(SCHEME_BENEFIT_KINDS),
+  benefitValue: z.coerce.number().min(0),                          // PCT: percent; AMOUNT/PER_UNIT: paise
+  eligibleGrades: z.array(z.enum(['A', 'B', 'C'])).default([]),
+  requiresApproval: z.boolean().optional(),
+  active: z.boolean().optional(),
+})
+  .refine((v) => v.endDate >= v.startDate, { message: 'endDate is before startDate' })
+  .refine((v) => v.scopeType === 'ALL' || v.scopeId != null, { message: 'scopeId is required for PRODUCT / CATEGORY scope' });
+export type SchemeFormInput = z.input<typeof schemeSchema>;
+
+// ── Quotations (spec §4.6 / §16) ──────────────────────────────────────────
+export const QUOTATION_STATUSES = ['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'] as const;
+
+export const quotationSchema = z.object({
+  leadId: z.uuid().nullable().optional(),
+  distributorId: z.uuid().nullable().optional(),
+  validUntil: z.coerce.date(),
+  notes: z.string().max(2000).optional().or(z.literal('')),
+}).refine((v) => !!v.leadId !== !!v.distributorId, { message: 'name exactly one of lead or distributor' });
+export type QuotationFormInput = z.input<typeof quotationSchema>;

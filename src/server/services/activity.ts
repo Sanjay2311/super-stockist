@@ -44,3 +44,9 @@ export async function listActivities(orgId: string, leadId: string): Promise<Act
     .where(and(eq(activities.orgId, orgId), eq(activities.leadId, leadId), isNull(activities.deletedAt)))
     .orderBy(desc(activities.occurredAt));
 }
+
+export async function listDistributorActivities(orgId: string, distributorId: string): Promise<ActivityRow[]> {
+  return db.select().from(activities)
+    .where(and(eq(activities.orgId, orgId), eq(activities.distributorId, distributorId), isNull(activities.deletedAt)))
+    .orderBy(desc(activities.occurredAt));
+}

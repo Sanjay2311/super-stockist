@@ -2,11 +2,13 @@ import { notFound } from 'next/navigation';
 import { requireUser } from '@/server/auth/session';
 import { getLead, redactLead } from '@/server/services/lead';
 import { listActivities } from '@/server/services/activity';
+import { listTerritories } from '@/server/services/territory';
 import { GradeBadge } from '@/components/grade-badge';
 import { formatINR } from '@/domain/money';
 import { ACTIVITY_TYPES } from '@/lib/schemas';
-import { saveLeadFields, saveScore, changeStage, logActivity } from './actions';
+import { saveLeadFields, saveScore, changeStage, logActivity, convertToDistributor } from './actions';
 import { StageForm } from './stage-form';
+import { ConvertForm } from './convert-form';
 
 const SCORE_FIELDS: { key: string; label: string }[] = [
   { key: 'retailerNetwork', label: 'Retailer network' },
@@ -31,6 +33,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   const scoreInputs = (lead.scoreInputs ?? {}) as Record<string, number>;
   const timeline = await listActivities(user.orgId, id);
+  const territories = lead.convertedDistributorId ? [] : await listTerritories(user.orgId);
+  const showConvert = ['APPROVED', 'APPOINTED'].includes(lead.stage) && !lead.convertedDistributorId;
 
   return (
     <main className="max-w-3xl space-y-6 p-6">
@@ -112,6 +116,19 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         />
         <p className="mt-2 text-xs text-neutral-400">Weighted value: {formatINR(Math.round((lead.expectedFfMonthlyPotential * lead.probability) / 100))}</p>
       </section>
+
+      {/* Card 3b: convert to distributor */}
+      {showConvert && (
+        <section className="rounded border p-4">
+          <h2 className="mb-3 text-sm font-medium">Convert to Distributor</h2>
+          <ConvertForm action={convertToDistributor.bind(null, id)} territories={territories} />
+        </section>
+      )}
+      {lead.convertedDistributorId && (
+        <section className="rounded border p-4 text-sm">
+          Converted — <a className="underline" href={`/distributors/${lead.convertedDistributorId}`}>view distributor</a>
+        </section>
+      )}
 
       {/* Card 4: activity timeline */}
       <section id="timeline" className="rounded border p-4">
