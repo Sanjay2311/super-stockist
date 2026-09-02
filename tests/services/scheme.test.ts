@@ -14,7 +14,7 @@ beforeEach(resetDb);
 
 const form = {
   name: 'Sept Dry Fruits 5%', type: 'FLAT_DISCOUNT' as const, scopeType: 'CATEGORY' as const,
-  scopeId: '00000000-0000-0000-0000-0000000000c1',
+  scopeId: '00000000-0000-4000-8000-0000000000c1',
   startDate: '2026-09-01', endDate: '2026-09-30',
   benefitKind: 'PCT' as const, benefitValue: 5, eligibleGrades: [] as ('A'|'B'|'C')[],
 };
@@ -47,9 +47,16 @@ describe('scheme service', () => {
     await createScheme(owner(orgId), { ...form, name: 'expired', endDate: '2026-09-05' });
 
     const hits = await activeSchemesFor(orgId, {
-      onDate: '2026-09-15', productId: '00000000-0000-0000-0000-0000000000d1',
-      categoryId: '00000000-0000-0000-0000-0000000000c1',
+      onDate: '2026-09-15', productId: '00000000-0000-4000-8000-0000000000d1',
+      categoryId: '00000000-0000-4000-8000-0000000000c1',
     });
     expect(hits.map((h) => h.name).sort()).toEqual(['all', 'cat c1']);
+
+    // categoryId: null — the CATEGORY branch must be skipped, not throw or match (Task 10's path)
+    const noCat = await activeSchemesFor(orgId, {
+      onDate: '2026-09-15', productId: '00000000-0000-4000-8000-0000000000d1',
+      categoryId: null,
+    });
+    expect(noCat.map((h) => h.name).sort()).toEqual(['all']);
   });
 });

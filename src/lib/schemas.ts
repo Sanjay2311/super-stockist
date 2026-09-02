@@ -157,9 +157,7 @@ export const schemeSchema = z.object({
   name: z.string().min(2).max(160),
   type: z.enum(SCHEME_TYPES),
   scopeType: z.enum(SCHEME_SCOPES),
-  // z.guid() (not z.uuid()) — scopeId holds a productId/categoryId that may be a
-  // non-RFC-variant UUID (e.g. seed/test fixtures); we only need shape validation.
-  scopeId: z.guid().nullable().optional(),
+  scopeId: z.uuid().nullable().optional(),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
   minQty: z.coerce.number().int().min(0).nullable().optional(),
