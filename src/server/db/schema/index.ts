@@ -6,3 +6,4 @@ export * from './territory';
 export * from './crm';
 export * from './distributor';
 export * from './product';
+export * from './quotation';

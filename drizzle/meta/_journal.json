@@ -71,6 +71,13 @@
       "when": 1788282087950,
       "tag": "0009_common_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788333361033,
+      "tag": "0010_yellow_loa",
+      "breakpoints": true
     }
   ]
 }
