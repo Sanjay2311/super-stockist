@@ -1484,7 +1484,8 @@ One line per M2b task (briefs in
 `.superpowers/sdd/2026-09-01-super-stockist-milestone-2b-distributors-quotations/`):
 
 - **Task 1** — `distributors` schema + migration **0009**; real `overlapsExclusive`
-  (`select 1 from distributors where org_id=$1 and territory_id=$2 and exclusive and id<>$3`),
+  — walks the territory hierarchy (target + ancestors + descendants) and flags any
+  ACTIVE/APPROVED exclusive distributor holding a node in that scope (self excluded),
   replacing the M1 stub — its PONYTAIL-DEBT row cleared.
 - **Task 2** — `distributor` service (`list` / `get` / `update`) with SALES cost
   redaction (`DISTRIBUTOR_FINANCIAL_FIELDS` + `redactDistributor`) and

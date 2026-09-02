@@ -76,9 +76,17 @@ export async function updateDistributor(
   const territoryOrExclusivityChanged =
     nextTerritoryId !== before.territoryId || nextExclusive !== before.exclusive;
 
+  // spec §4.4/§13: the trigger is *assigning a territory held exclusively by
+  // another active distributor* — the incoming party's own `exclusive` flag is
+  // irrelevant (#2). And entering a blocking status must re-check the current
+  // territory even when nothing else changed on this save (#3).
+  const wasBlocking = ['APPROVED', 'ACTIVE'].includes(before.status);
+  const isBlocking = ['APPROVED', 'ACTIVE'].includes(nextStatus);
+  const needsExclusivityCheck =
+    isBlocking && (territoryOrExclusivityChanged || !wasBlocking);
+
   let exclusivityNote: string | null | undefined;
-  if (nextExclusive && nextTerritoryId && territoryOrExclusivityChanged
-      && ['APPROVED', 'ACTIVE'].includes(nextStatus)) {
+  if (needsExclusivityCheck && nextTerritoryId) {
     const clash = await overlapsExclusive(user.orgId, nextTerritoryId, id);
     if (clash) {
       if (!overrideReason) throw new Error('EXCLUSIVITY_CONFLICT');
@@ -113,8 +121,11 @@ export async function convertLead(
     throw new Error('LEAD_NOT_CONVERTIBLE');
   }
 
+  // §13: clash is triggered by assigning a territory another active exclusive
+  // distributor holds — the new party's own `exclusive` flag is irrelevant (#2).
+  // A converted lead is always created APPROVED (a blocking status).
   let exclusivityNote: string | null = null;
-  if (form.exclusive && form.territoryId) {
+  if (form.territoryId) {
     const clash = await overlapsExclusive(user.orgId, form.territoryId);
     if (clash) {
       if (!form.overrideReason) throw new Error('EXCLUSIVITY_CONFLICT');

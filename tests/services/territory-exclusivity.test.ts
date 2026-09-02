@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { migrateTestDb, resetDb, testDb } from '../helpers/db';
 import { seedBase } from '@/server/db/seed';
 import { territories } from '@/server/db/schema/territory';
@@ -74,5 +75,17 @@ describe('overlapsExclusive', () => {
     }).returning();
     void sibling;
     expect(await overlapsExclusive(orgId, area.id, self.id)).toBe(false);
+  });
+
+  it('#4: a deactivated intermediate territory does not truncate the ancestor walk', async () => {
+    const { orgId } = await seedBase();
+    const { zone, area, pin } = await tree(orgId);
+    // deactivate the intermediate AREA node — it must still bridge zone → pincode
+    await testDb.update(territories).set({ active: false }).where(eq(territories.id, area.id));
+    await testDb.insert(distributors).values({
+      orgId, businessName: 'ZoneHolder', contactPerson: 'x', phone: '9800000000',
+      territoryId: zone.id, exclusive: true, status: 'ACTIVE',
+    });
+    expect(await overlapsExclusive(orgId, pin.id)).toBe(true);
   });
 });

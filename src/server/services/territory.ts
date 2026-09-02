@@ -21,6 +21,19 @@ export async function listTerritories(orgId: string): Promise<TerritoryRow[]> {
     .orderBy(asc(territories.name));
 }
 
+// Like listTerritories but WITHOUT the `active` filter (soft-delete filter only).
+// The §13 exclusivity hierarchy must include deactivated intermediate nodes —
+// otherwise a deactivated area truncates the ancestor/descendant chain and a real
+// clash above or below it is missed. `listTerritories` (active-only) stays the UI
+// picker source; the exclusivity walk uses this.
+export async function allTerritories(orgId: string): Promise<TerritoryRow[]> {
+  return db
+    .select()
+    .from(territories)
+    .where(and(eq(territories.orgId, orgId), isNull(territories.deletedAt)))
+    .orderBy(asc(territories.name));
+}
+
 export async function territoryTree(orgId: string): Promise<TerritoryNode[]> {
   const rows = await listTerritories(orgId);
   const byId = new Map(rows.map((r) => [r.id, { ...r, children: [] as TerritoryNode[] }]));
@@ -33,7 +46,7 @@ export async function territoryTree(orgId: string): Promise<TerritoryNode[]> {
 }
 
 export async function descendantIds(orgId: string, territoryId: string): Promise<string[]> {
-  const rows = await listTerritories(orgId);
+  const rows = await allTerritories(orgId);
   const out: string[] = [];
   const stack = [territoryId];
   while (stack.length) {
@@ -49,7 +62,7 @@ export async function descendantIds(orgId: string, territoryId: string): Promise
 }
 
 export async function ancestorIds(orgId: string, territoryId: string): Promise<string[]> {
-  const rows = await listTerritories(orgId);
+  const rows = await allTerritories(orgId);
   const byId = new Map(rows.map((r) => [r.id, r]));
   const out: string[] = [];
   let cur = byId.get(territoryId)?.parentId ?? null;

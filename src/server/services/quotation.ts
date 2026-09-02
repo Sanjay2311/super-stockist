@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, getTableColumns, isNull, like } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { quotations, quotationItems, priceApprovals } from '@/server/db/schema/quotation';
@@ -8,7 +9,8 @@ import { assertCan, stripFinancial } from '@/server/auth/permissions';
 import { classifyRate, computeQuoteLine, type RateClass } from '@/domain/quote';
 import { isSchemeEligible, schemeBenefitPaise } from '@/domain/scheme';
 import { getProduct } from './product';
-import { getDistributor } from './distributor';
+import { getDistributor, type DistributorRow } from './distributor';
+import { getLead } from './lead';
 import { activeSchemesFor, toSchemeDef } from './scheme';
 import { getConfig } from './config';
 import { writeAudit } from './audit';
@@ -73,11 +75,21 @@ export async function createQuotation(user: AppUser, input: NewQuotation): Promi
   const today = new Date();
   const onDate = ymd(today);
 
-  const distributorGrade = f.distributorId
-    ? (await getDistributor(orgId, f.distributorId))?.grade ?? null
-    : null;
+  // Resolve the quote party up front and confirm it lives in this org — neither
+  // column has an FK, so a crafted foreign uuid would otherwise reach a write (#6).
+  let distributor: DistributorRow | null = null;
+  if (f.distributorId) {
+    distributor = await getDistributor(orgId, f.distributorId);
+    if (!distributor) throw new Error('party not found');
+  }
+  if (f.leadId) {
+    const lead = await getLead(orgId, f.leadId);
+    if (!lead) throw new Error('party not found');
+  }
+  const distributorGrade = distributor?.grade ?? null;
 
   type Prepared = {
+    id: string;
     productId: string; qty: number; requestedRate: Paise;
     listRate: Paise; floorRate: Paise; targetRate: Paise; gstPct: number;
     discount: Paise; schemeId: string | null; schemeBenefit: Paise; netAmount: Paise;
@@ -122,6 +134,7 @@ export async function createQuotation(user: AppUser, input: NewQuotation): Promi
     const approvalStatus = APPROVAL_STATUS[classifyRate({ requestedRate: item.requestedRate, floorRate, targetRate })];
 
     prepared.push({
+      id: randomUUID(),
       productId: item.productId, qty: item.qty, requestedRate: item.requestedRate,
       listRate, floorRate, targetRate, gstPct,
       discount, schemeId: chosen?.id ?? null, schemeBenefit, netAmount: calc.netAmount,
@@ -142,8 +155,11 @@ export async function createQuotation(user: AppUser, input: NewQuotation): Promi
     notes: f.notes ? f.notes : null,
   }).returning();
 
+  // Item ids are pre-generated (above) so the scheme_applications mapping is
+  // explicit, not positional on multi-row INSERT ... RETURNING order (#8).
   const insertedItems = await db.insert(quotationItems).values(
     prepared.map((p) => ({
+      id: p.id,
       orgId,
       quotationId: quotation.id,
       productId: p.productId,
@@ -161,14 +177,13 @@ export async function createQuotation(user: AppUser, input: NewQuotation): Promi
     })),
   ).returning();
 
-  const schemeRows = insertedItems
-    .map((row, i) => ({ row, p: prepared[i] }))
-    .filter(({ p }) => p.schemeId)
-    .map(({ row, p }) => ({
+  const schemeRows = prepared
+    .filter((p) => p.schemeId)
+    .map((p) => ({
       orgId,
       schemeId: p.schemeId!,
       quotationId: quotation.id,
-      quotationItemId: row.id,
+      quotationItemId: p.id,
       distributorId: f.distributorId ?? null,
       actualBenefit: p.schemeBenefit,
     }));
@@ -229,6 +244,11 @@ export async function submitQuotation(user: AppUser, id: string): Promise<Quotat
         }).where(eq(priceApprovals.id, appr.id));
         await db.update(quotationItems).set({ approvalStatus: 'APPROVED', updatedAt: new Date() })
           .where(eq(quotationItems.id, item.id));
+        // §4.6: price_approvals is audit-logged on EVERY mutation. The self-approve
+        // path records a price concession by the person who benefits — audit it (#5).
+        await writeAudit(user, 'price_approval', appr.id, 'auto_approve', null, {
+          decision: 'APPROVED', requestedRate: item.requestedRate, listRate: item.listRate,
+        });
       }
     } else if (item.approvalStatus === 'BLOCKED') {
       await db.insert(priceApprovals).values({
@@ -240,6 +260,15 @@ export async function submitQuotation(user: AppUser, id: string): Promise<Quotat
         requestedBy: user.id,
       });
     }
+  }
+
+  // §4.6 / §16: a below-floor line is `BLOCKED` until an admin override. Nothing
+  // else gates the transition, so re-read here and hard-stop the send while any
+  // line is still BLOCKED (#1). `PENDING` lines proceed — that is the
+  // admin-approval-pending state the owner works from /approvals.
+  const finalItems = await db.select().from(quotationItems).where(eq(quotationItems.quotationId, id));
+  if (finalItems.some((i) => i.approvalStatus === 'BLOCKED')) {
+    throw new Error('PRICE_APPROVAL_REQUIRED');
   }
 
   const [row] = await db.update(quotations).set({ status: 'SENT', updatedAt: new Date() })
@@ -298,6 +327,16 @@ export async function setQuotationStatus(user: AppUser, id: string, status: stri
   const [before] = await db.select().from(quotations)
     .where(and(eq(quotations.id, id), eq(quotations.orgId, user.orgId), isNull(quotations.deletedAt)));
   if (!before) throw new Error('not found');
+
+  // §16: an accepted quote must have every line approved or AUTO — SALES holds
+  // `quotation.setStatus`, so refuse ACCEPTED while any line is unapproved (#1).
+  if (status === 'ACCEPTED') {
+    const items = await db.select().from(quotationItems).where(eq(quotationItems.quotationId, id));
+    if (items.some((i) => i.approvalStatus === 'BLOCKED' || i.approvalStatus === 'PENDING')) {
+      throw new Error('UNAPPROVED_LINES');
+    }
+  }
+
   const [row] = await db.update(quotations).set({ status, updatedAt: new Date() })
     .where(eq(quotations.id, id)).returning();
   await writeAudit(user, 'quotation', id, 'status', { status: before.status }, { status });

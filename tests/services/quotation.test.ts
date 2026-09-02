@@ -5,6 +5,7 @@ import { seedBase } from '@/server/db/seed';
 import { categories, products, productPrices } from '@/server/db/schema/product';
 import { distributors } from '@/server/db/schema/distributor';
 import { priceApprovals, quotationItems } from '@/server/db/schema/quotation';
+import { schemeApplications } from '@/server/db/schema/scheme';
 import { auditLog } from '@/server/db/schema/audit';
 import {
   createQuotation, getQuotation, submitQuotation, decideApproval, listPendingApprovals,
@@ -72,6 +73,10 @@ describe('quotation service', () => {
     expect(g1!.items[0].approvalStatus).toBe('APPROVED');
     const [a1] = await testDb.select().from(priceApprovals).where(eq(priceApprovals.quotationItemId, g1!.items[0].id));
     expect(a1.decision).toBe('APPROVED');
+    // #5: the self-approve path must write a price_approval audit row
+    const selfApproveAudit = await testDb.select().from(auditLog)
+      .where(and(eq(auditLog.entityType, 'price_approval'), eq(auditLog.action, 'auto_approve')));
+    expect(selfApproveAudit.length).toBe(1);
 
     const q2 = await createQuotation(sales(orgId), {
       distributorId: d.id, validUntil: '2026-12-31',
@@ -92,7 +97,9 @@ describe('quotation service', () => {
       items: [{ productId: product.id, qty: 4, requestedRate: 11000 }], // < floor 11556
     });
     expect((await getQuotation(orgId, q.id))!.items[0].approvalStatus).toBe('BLOCKED');
-    await submitQuotation(sales(orgId), q.id);
+    // #1: submit queues the approval row but refuses the SENT transition while BLOCKED
+    await expect(submitQuotation(sales(orgId), q.id)).rejects.toThrow('PRICE_APPROVAL_REQUIRED');
+    expect((await getQuotation(orgId, q.id))!.quotation.status).toBe('DRAFT');
     const pend = await listPendingApprovals(orgId);
     expect(pend.length).toBe(1);
     await expect(decideApproval(sales(orgId), pend[0].id, 'APPROVED')).rejects.toThrow('forbidden');
@@ -146,5 +153,85 @@ describe('quotation service', () => {
     await setQuotationStatus(owner(orgId), q.id, 'ACCEPTED');
     const rows = await testDb.select().from(auditLog).where(and(eq(auditLog.entityType, 'quotation'), eq(auditLog.action, 'status')));
     expect(rows.length).toBe(1);
+  });
+
+  it('#1: SALES submitQuotation with a below-floor line is refused and the quote stays DRAFT', async () => {
+    const { orgId } = await seedBase();
+    const { product } = await seedProduct(orgId);
+    const d = await seedDist(orgId);
+    const q = await createQuotation(sales(orgId), {
+      distributorId: d.id, validUntil: '2026-12-31',
+      items: [{ productId: product.id, qty: 4, requestedRate: 11000 }], // < floor 11556 -> BLOCKED
+    });
+    await expect(submitQuotation(sales(orgId), q.id)).rejects.toThrow('PRICE_APPROVAL_REQUIRED');
+    expect((await getQuotation(orgId, q.id))!.quotation.status).toBe('DRAFT');
+  });
+
+  it('#1: after OWNER approves the BLOCKED line, submitQuotation succeeds and the quote is SENT', async () => {
+    const { orgId } = await seedBase();
+    const { product } = await seedProduct(orgId);
+    const d = await seedDist(orgId);
+    const q = await createQuotation(sales(orgId), {
+      distributorId: d.id, validUntil: '2026-12-31',
+      items: [{ productId: product.id, qty: 4, requestedRate: 11000 }],
+    });
+    await expect(submitQuotation(sales(orgId), q.id)).rejects.toThrow('PRICE_APPROVAL_REQUIRED');
+    const pend = await listPendingApprovals(orgId);
+    await decideApproval(owner(orgId), pend[0].id, 'APPROVED', 'one-off');
+    const row = await submitQuotation(sales(orgId), q.id);
+    expect(row.status).toBe('SENT');
+    expect((await getQuotation(orgId, q.id))!.quotation.status).toBe('SENT');
+  });
+
+  it('#1: setQuotationStatus ACCEPTED is refused while a line is still PENDING', async () => {
+    const { orgId } = await seedBase();
+    const { product } = await seedProduct(orgId);
+    const d = await seedDist(orgId);
+    const q = await createQuotation(sales(orgId), {
+      distributorId: d.id, validUntil: '2026-12-31',
+      items: [{ productId: product.id, qty: 5, requestedRate: 12000 }], // [floor,target) -> PENDING for SALES
+    });
+    expect((await getQuotation(orgId, q.id))!.items[0].approvalStatus).toBe('PENDING');
+    await expect(setQuotationStatus(sales(orgId), q.id, 'ACCEPTED')).rejects.toThrow('UNAPPROVED_LINES');
+  });
+
+  it('#6: createQuotation with a non-existent distributorId is rejected as "party not found"', async () => {
+    const { orgId } = await seedBase();
+    const { product } = await seedProduct(orgId);
+    await expect(
+      createQuotation(owner(orgId), {
+        distributorId: '00000000-0000-4000-8000-000000000000', validUntil: '2026-12-31',
+        items: [{ productId: product.id, qty: 1, requestedRate: 12800 }],
+      }),
+    ).rejects.toThrow('party not found');
+  });
+
+  it('#8: a two-item quote where only the 2nd line has an eligible scheme maps the scheme_application to that line', async () => {
+    const { orgId } = await seedBase();
+    const a = await seedProduct(orgId);
+    const b = await seedProduct(orgId);
+    const d = await seedDist(orgId);
+    await createScheme(owner(orgId), {
+      name: 'P2 5%', type: 'FLAT_DISCOUNT', scopeType: 'PRODUCT', scopeId: b.product.id,
+      startDate: '2026-01-01', endDate: '2026-12-31', benefitKind: 'PCT', benefitValue: 5, eligibleGrades: [],
+    });
+    const q = await createQuotation(owner(orgId), {
+      distributorId: d.id, validUntil: '2026-12-31',
+      items: [
+        { productId: a.product.id, qty: 10, requestedRate: 12800 },
+        { productId: b.product.id, qty: 10, requestedRate: 12800 },
+      ],
+    });
+    const got = await getQuotation(orgId, q.id);
+    expect(got!.items.length).toBe(2);
+    const itemA = got!.items.find((i) => i.productId === a.product.id)!;
+    const itemB = got!.items.find((i) => i.productId === b.product.id)!;
+    expect(itemA.schemeId).toBeNull();
+    expect(itemA.schemeBenefit).toBe(0);
+    expect(itemB.schemeId).not.toBeNull();
+    expect(itemB.schemeBenefit).toBeGreaterThan(0);
+    const apps = await testDb.select().from(schemeApplications).where(eq(schemeApplications.quotationId, q.id));
+    expect(apps.length).toBe(1);
+    expect(apps[0].quotationItemId).toBe(itemB.id);
   });
 });

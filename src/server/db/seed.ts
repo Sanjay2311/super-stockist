@@ -302,7 +302,14 @@ export async function purgeDemo(orgId: string): Promise<void> {
     }
     await db.delete(quotations).where(inArray(quotations.id, demoQuoteIds));
   }
-  await db.delete(schemeApplications).where(and(eq(schemeApplications.orgId, orgId)));
+  // Only scheme_applications on DEMO schemes — a blanket org-wide delete would
+  // also strip applications on genuine non-demo quotations that still carry
+  // schemeId/schemeBenefit, diverging §4.6's scheme-cost feed (#7).
+  const demoSchemeIds = (await db.select({ id: schemes.id }).from(schemes)
+    .where(and(eq(schemes.orgId, orgId), eq(schemes.isDemo, true)))).map((s) => s.id);
+  if (demoSchemeIds.length) {
+    await db.delete(schemeApplications).where(inArray(schemeApplications.schemeId, demoSchemeIds));
+  }
   await db.delete(schemes).where(and(eq(schemes.orgId, orgId), eq(schemes.isDemo, true)));
   await db.delete(distributors).where(and(eq(distributors.orgId, orgId), eq(distributors.isDemo, true)));
 

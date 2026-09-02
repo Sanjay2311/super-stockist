@@ -72,6 +72,41 @@ describe('distributor service', () => {
     const rows = await testDb.select().from(auditLog).where(eq(auditLog.action, 'exclusivity_override'));
     expect(rows.length).toBe(1);
   });
+
+  it('#2: a NON-exclusive incoming distributor still clashes with an active exclusive holder', async () => {
+    const { orgId } = await seedBase();
+    const [zone] = await testDb.insert(territories).values({ orgId, name: 'East', type: 'ZONE', parentId: null }).returning();
+    const [area] = await testDb.insert(territories).values({ orgId, name: 'Whitefield', type: 'AREA', parentId: zone.id }).returning();
+    await seedDist(orgId, { businessName: 'Incumbent', territoryId: area.id, exclusive: true, status: 'ACTIVE' });
+    const mover = await seedDist(orgId, { businessName: 'Mover' }); // status APPROVED (blocking), exclusive false
+
+    await expect(
+      updateDistributor(owner(orgId), mover.id, { territoryId: area.id }), // no `exclusive` flag
+    ).rejects.toThrow('EXCLUSIVITY_CONFLICT');
+  });
+
+  it('#3: a PROSPECT may be parked in a clashing node, but entering ACTIVE re-checks and clashes', async () => {
+    const { orgId } = await seedBase();
+    const [zone] = await testDb.insert(territories).values({ orgId, name: 'East', type: 'ZONE', parentId: null }).returning();
+    const [area] = await testDb.insert(territories).values({ orgId, name: 'Whitefield', type: 'AREA', parentId: zone.id }).returning();
+    await seedDist(orgId, { businessName: 'Incumbent', territoryId: area.id, exclusive: true, status: 'ACTIVE' });
+    const prospect = await seedDist(orgId, { businessName: 'Prospect', status: 'PROSPECT' });
+
+    // PROSPECT is not a blocking status → no exclusivity check on this save
+    const parked = await updateDistributor(owner(orgId), prospect.id, { territoryId: area.id, exclusive: true });
+    expect(parked.territoryId).toBe(area.id);
+
+    // entering ACTIVE re-checks the current territory even though nothing else changed
+    await expect(
+      updateDistributor(owner(orgId), prospect.id, { status: 'ACTIVE' }),
+    ).rejects.toThrow('EXCLUSIVITY_CONFLICT');
+
+    const ok = await updateDistributor(owner(orgId), prospect.id, {
+      status: 'ACTIVE', overrideReason: 'Channel split agreed with F&F',
+    });
+    expect(ok.status).toBe('ACTIVE');
+    expect(ok.exclusivityNote).toMatch(/Channel split/);
+  });
 });
 
 describe('convertLead', () => {
@@ -126,5 +161,17 @@ describe('convertLead', () => {
       territoryId: area.id, exclusive: true, overrideReason: 'Channel split agreed with F&F',
     });
     expect(d.exclusivityNote).toMatch(/Channel split/);
+  });
+
+  it('#2: converting a NON-exclusive lead into a node an exclusive holder owns still clashes', async () => {
+    const { orgId } = await seedBase();
+    const [zone] = await testDb.insert(territories).values({ orgId, name: 'East', type: 'ZONE', parentId: null }).returning();
+    const [area] = await testDb.insert(territories).values({ orgId, name: 'Whitefield', type: 'AREA', parentId: zone.id }).returning();
+    await seedDist(orgId, { businessName: 'Incumbent', territoryId: area.id, exclusive: true, status: 'ACTIVE' });
+
+    const lead = await seedLead(orgId, { businessName: 'NonExclIncoming' });
+    await expect(
+      convertLead(owner(orgId), lead.id, { territoryId: area.id }), // no `exclusive` flag
+    ).rejects.toThrow('EXCLUSIVITY_CONFLICT');
   });
 });
