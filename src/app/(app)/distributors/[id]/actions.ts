@@ -20,7 +20,9 @@ export async function saveDistributor(id: string, formData: FormData) {
     address: text('address') ?? '',
     territoryId: (formData.get('territoryId') || null) as string | null,
     exclusive: formData.get('exclusive') === 'on',
-    assignedEmployeeId: (formData.get('assignedEmployeeId') || null) as string | null,
+    // assignedEmployeeId is intentionally not sent: M2b has no editable control for
+    // it, conversion (Task 5) sets it, and patchOnly would otherwise wipe it to null
+    // on every master-form save.
     status: status && (DISTRIBUTOR_STATUSES as readonly string[]).includes(status)
       ? (status as (typeof DISTRIBUTOR_STATUSES)[number]) : undefined,
     creditLimit: text('creditLimit') ? rupees(Number(text('creditLimit'))) : undefined,
