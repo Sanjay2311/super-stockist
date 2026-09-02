@@ -78,6 +78,13 @@
       "when": 1788333361033,
       "tag": "0010_yellow_loa",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788334190875,
+      "tag": "0011_violet_lightspeed",
+      "breakpoints": true
     }
   ]
 }

@@ -147,3 +147,29 @@ export const dailyReportSchema = z.object({
   blockers: z.string().max(2000).optional().or(z.literal('')),
 });
 export type DailyReportInput = z.infer<typeof dailyReportSchema>;
+
+// ── Schemes (spec §4.6 / §30) ─────────────────────────────────────────────
+export const SCHEME_TYPES = ['FLAT_DISCOUNT', 'QTY_SCHEME', 'DISTRIBUTOR_INCENTIVE'] as const;
+export const SCHEME_SCOPES = ['PRODUCT', 'CATEGORY', 'ALL'] as const;
+export const SCHEME_BENEFIT_KINDS = ['PCT', 'AMOUNT', 'PER_UNIT'] as const;
+
+export const schemeSchema = z.object({
+  name: z.string().min(2).max(160),
+  type: z.enum(SCHEME_TYPES),
+  scopeType: z.enum(SCHEME_SCOPES),
+  // z.guid() (not z.uuid()) — scopeId holds a productId/categoryId that may be a
+  // non-RFC-variant UUID (e.g. seed/test fixtures); we only need shape validation.
+  scopeId: z.guid().nullable().optional(),
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+  minQty: z.coerce.number().int().min(0).nullable().optional(),
+  minValue: z.coerce.number().int().min(0).nullable().optional(), // paise
+  benefitKind: z.enum(SCHEME_BENEFIT_KINDS),
+  benefitValue: z.coerce.number().min(0),                          // PCT: percent; AMOUNT/PER_UNIT: paise
+  eligibleGrades: z.array(z.enum(['A', 'B', 'C'])).default([]),
+  requiresApproval: z.boolean().optional(),
+  active: z.boolean().optional(),
+})
+  .refine((v) => v.endDate >= v.startDate, { message: 'endDate is before startDate' })
+  .refine((v) => v.scopeType === 'ALL' || v.scopeId != null, { message: 'scopeId is required for PRODUCT / CATEGORY scope' });
+export type SchemeFormInput = z.input<typeof schemeSchema>;

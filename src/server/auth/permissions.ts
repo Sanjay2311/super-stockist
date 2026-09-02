@@ -8,6 +8,7 @@ export type Action =
   | 'territory.view' | 'territory.edit'
   | 'product.view' | 'product.edit' | 'product.viewCost' | 'pricing.recommend'
   | 'distributor.view' | 'distributor.create' | 'distributor.edit'
+  | 'scheme.view' | 'scheme.edit'
   | 'config.view' | 'config.edit'
   | 'employee.manage'
   | 'dashboard.view';
@@ -19,6 +20,7 @@ const OWNER_ACTIONS: Action[] = [
   'territory.view', 'territory.edit',
   'product.view', 'product.edit', 'product.viewCost', 'pricing.recommend',
   'distributor.view', 'distributor.create', 'distributor.edit',
+  'scheme.view', 'scheme.edit',
   'config.view', 'config.edit',
   'employee.manage', 'dashboard.view',
 ];
@@ -28,6 +30,7 @@ const SALES_ACTIONS: Action[] = [
   'activity.create', 'task.create', 'task.update', 'task.complete',
   'dailyReport.submit', 'territory.view', 'product.view',
   'distributor.view', 'distributor.create',
+  'scheme.view',
   'config.view', 'dashboard.view',
 ];
 
