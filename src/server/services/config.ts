@@ -25,6 +25,7 @@ export const CONFIG_DEFAULTS = {
   },
   pricingBandsByCategory: {} as Record<string, Partial<PricingBands>>,
   pricesGstInclusive: true,
+  priceApprovalRequired: true,
 } satisfies {
   scoreWeights: Record<string, number>;
   stageProbability: Record<LeadStage, number>;
@@ -34,6 +35,7 @@ export const CONFIG_DEFAULTS = {
   pricingBands: PricingBands;
   pricingBandsByCategory: Record<string, Partial<PricingBands>>;
   pricesGstInclusive: boolean;
+  priceApprovalRequired: boolean;
 };
 
 export type ConfigShape = typeof CONFIG_DEFAULTS;

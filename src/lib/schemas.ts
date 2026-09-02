@@ -171,3 +171,14 @@ export const schemeSchema = z.object({
   .refine((v) => v.endDate >= v.startDate, { message: 'endDate is before startDate' })
   .refine((v) => v.scopeType === 'ALL' || v.scopeId != null, { message: 'scopeId is required for PRODUCT / CATEGORY scope' });
 export type SchemeFormInput = z.input<typeof schemeSchema>;
+
+// ── Quotations (spec §4.6 / §16) ──────────────────────────────────────────
+export const QUOTATION_STATUSES = ['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'] as const;
+
+export const quotationSchema = z.object({
+  leadId: z.uuid().nullable().optional(),
+  distributorId: z.uuid().nullable().optional(),
+  validUntil: z.coerce.date(),
+  notes: z.string().max(2000).optional().or(z.literal('')),
+}).refine((v) => !!v.leadId !== !!v.distributorId, { message: 'name exactly one of lead or distributor' });
+export type QuotationFormInput = z.input<typeof quotationSchema>;

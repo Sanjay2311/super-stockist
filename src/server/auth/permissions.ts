@@ -9,6 +9,7 @@ export type Action =
   | 'product.view' | 'product.edit' | 'product.viewCost' | 'pricing.recommend'
   | 'distributor.view' | 'distributor.create' | 'distributor.edit'
   | 'scheme.view' | 'scheme.edit'
+  | 'quotation.view' | 'quotation.create' | 'quotation.approve' | 'quotation.setStatus'
   | 'config.view' | 'config.edit'
   | 'employee.manage'
   | 'dashboard.view';
@@ -21,6 +22,7 @@ const OWNER_ACTIONS: Action[] = [
   'product.view', 'product.edit', 'product.viewCost', 'pricing.recommend',
   'distributor.view', 'distributor.create', 'distributor.edit',
   'scheme.view', 'scheme.edit',
+  'quotation.view', 'quotation.create', 'quotation.approve', 'quotation.setStatus',
   'config.view', 'config.edit',
   'employee.manage', 'dashboard.view',
 ];
@@ -31,6 +33,7 @@ const SALES_ACTIONS: Action[] = [
   'dailyReport.submit', 'territory.view', 'product.view',
   'distributor.view', 'distributor.create',
   'scheme.view',
+  'quotation.view', 'quotation.create', 'quotation.setStatus',
   'config.view', 'dashboard.view',
 ];
 
