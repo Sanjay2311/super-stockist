@@ -59,14 +59,21 @@ export default async function QuotationPrintPage({ params }: { params: Promise<{
         <PrintButton />
       </div>
 
+      {/* This quotation is FROM the Super Stockist, TO the distributor — F&F only
+          appears as context ("Authorized Super Stockist for ..."), never as the
+          issuer. F&F raises the actual GST bill later, separately (Billing
+          Request, Phase 2), so no GSTIN belongs on this document at all.
+          ponytail: phone/email/address below are placeholders — Sanjay asked to
+          use dummy values "for now"; replace with real details before this is
+          sent to an actual distributor. */}
       <header className="flex items-center gap-4 border-b-2 border-black pb-4">
         {/* eslint-disable-next-line @next/next/no-img-element -- static print asset, no next/image needed */}
         <img src="/farm-and-farmers-logo.jpg" alt="Farm & Farmers" className="h-16 w-16" />
         <div>
-          <div className="text-lg font-bold">Farm &amp; Farmers</div>
-          {/* ponytail: GSTIN unknown — add it here once F&F confirms their GST number */}
+          <div className="text-lg font-bold">Sanjay Panday</div>
+          <div className="text-xs text-neutral-600">Authorized Super Stockist for Farm &amp; Farmers</div>
           <div className="text-xs text-neutral-600">
-            Jaipur, Rajasthan · +91 9116566275 · farmandfarmersinfo@gmail.com
+            +91 98765 43210 · sanjay@example.com · Bangalore East, Karnataka
           </div>
         </div>
       </header>
