@@ -6,6 +6,7 @@ import { assertCan } from '@/server/auth/permissions';
 import { getConfig, setConfig } from '@/server/services/config';
 import { writeAudit } from '@/server/services/audit';
 import { purgeDemo } from '@/server/db/seed';
+import { runAlertScan } from '@/server/services/notification';
 import { assertWeightsValid, type ScoreWeights } from '@/domain/scoring';
 
 const WEIGHT_KEYS = [
@@ -81,4 +82,12 @@ export async function purgeDemoAction() {
   assertCan(user, 'config.edit');
   await purgeDemo(user.orgId);
   revalidatePath('/', 'layout');
+}
+
+export async function runAlertScanAction() {
+  const user = await requireUser();
+  assertCan(user, 'config.edit');
+  const { created } = await runAlertScan(user.orgId);
+  revalidatePath('/settings');
+  return { created };
 }

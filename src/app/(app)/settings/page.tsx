@@ -4,6 +4,7 @@ import { can } from '@/server/auth/permissions';
 import { getConfig, CONFIG_DEFAULTS } from '@/server/services/config';
 import { hasDemoData } from '@/server/db/seed';
 import { regenerateAll } from '../products/actions';
+import { runAlertScanAction } from './actions';
 import { SettingsForms, PurgeDemoButton } from './forms';
 
 export default async function SettingsPage() {
@@ -37,6 +38,19 @@ export default async function SettingsPage() {
           </button>
         </form>
       )}
+      <form
+        action={async () => {
+          'use server';
+          await runAlertScanAction();
+        }}
+        className="max-w-md space-y-2"
+      >
+        <h2 className="text-sm font-semibold text-neutral-600">Alerts</h2>
+        <p className="text-sm text-neutral-500">
+          Manually run the alert scan (the same job the nightly cron trigger runs once deployed).
+        </p>
+        <button className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white">Run alert scan</button>
+      </form>
       <PurgeDemoButton hasDemo={hasDemo} />
       <section>
         {/* ponytail: stage-probability map is read-only in M1 — editing it is deferred to
