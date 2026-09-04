@@ -53,9 +53,25 @@ export default async function QuotationPrintPage({ params }: { params: Promise<{
     }),
   );
 
+  const quoteDate = new Date(quotation.quoteDate).toLocaleDateString('en-IN', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  });
+  const validUntil = new Date(quotation.validUntil).toLocaleDateString('en-IN', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  });
+
   return (
-    <main className="mx-auto max-w-2xl space-y-4 p-8 text-sm text-black">
-      <div className="flex justify-end print:hidden">
+    <main className="mx-auto max-w-2xl p-6 text-sm text-neutral-900">
+      {/* Backgrounds are dropped by default when a browser prints — this forces them
+          through so the accent bar / table header / totals box survive Print and
+          Save-as-PDF, not just the on-screen preview. */}
+      <style>{`
+        @media print {
+          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}</style>
+
+      <div className="mb-4 flex justify-end print:hidden">
         <PrintButton />
       </div>
 
@@ -66,71 +82,133 @@ export default async function QuotationPrintPage({ params }: { params: Promise<{
           ponytail: phone/email/address below are placeholders — Sanjay asked to
           use dummy values "for now"; replace with real details before this is
           sent to an actual distributor. */}
-      <header className="flex items-center gap-4 border-b-2 border-black pb-4">
-        {/* eslint-disable-next-line @next/next/no-img-element -- static print asset, no next/image needed */}
-        <img src="/farm-and-farmers-logo.jpg" alt="Farm & Farmers" className="h-16 w-16" />
-        <div>
-          <div className="text-lg font-bold">Sanjay Panday</div>
-          <div className="text-xs text-neutral-600">Authorized Super Stockist for Farm &amp; Farmers</div>
-          <div className="text-xs text-neutral-600">
-            +91 98765 43210 · sanjay@example.com · Bangalore East, Karnataka
+      <div className="overflow-hidden rounded-lg border border-neutral-200 shadow-sm print:border-0 print:shadow-none">
+        <div className="h-2 bg-emerald-700" />
+
+        <div className="space-y-6 p-8">
+          <header className="flex items-start justify-between gap-6">
+            <div className="flex items-center gap-4">
+              {/* eslint-disable-next-line @next/next/no-img-element -- static print asset, no next/image needed */}
+              <img src="/farm-and-farmers-logo.jpg" alt="Farm & Farmers" className="h-14 w-14 shrink-0" />
+              <div>
+                <div className="text-lg font-bold tracking-tight">Sanjay Panday</div>
+                <div className="text-xs font-medium text-emerald-700">
+                  Authorized Super Stockist for Farm &amp; Farmers
+                </div>
+                <div className="mt-1 text-xs text-neutral-500">
+                  +91 98765 43210 · sanjay@example.com
+                  <br />
+                  Bangalore East, Karnataka
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold uppercase tracking-wide text-emerald-700">Quotation</div>
+              <div className="mt-1 text-xs text-neutral-500">
+                <div>
+                  <span className="text-neutral-400">No.</span>{' '}
+                  <span className="font-medium text-neutral-800">{quotation.quoteNo}</span>
+                </div>
+                <div>
+                  <span className="text-neutral-400">Date</span>{' '}
+                  <span className="font-medium text-neutral-800">{quoteDate}</span>
+                </div>
+                <div>
+                  <span className="text-neutral-400">Valid until</span>{' '}
+                  <span className="font-medium text-neutral-800">{validUntil}</span>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <div className="rounded-md bg-neutral-50 px-4 py-3 print:bg-neutral-50">
+            <div className="text-[11px] uppercase tracking-wide text-neutral-400">Quotation for</div>
+            <div className="text-base font-semibold text-neutral-900">{party ?? '—'}</div>
+          </div>
+
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="bg-emerald-700 text-left text-white print:bg-emerald-700">
+                <th className="rounded-l-md py-2 pl-3">Product</th>
+                <th className="py-2 text-right">Qty</th>
+                <th className="py-2 text-right">Rate</th>
+                <th className="py-2 text-right">MRP</th>
+                <th className="py-2 text-right">Discount</th>
+                <th className="py-2 text-right">Scheme</th>
+                <th className="rounded-r-md py-2 pr-3 text-right">Net</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((it, i) => {
+                const mrp = pMrp.get(it.productId);
+                return (
+                  <tr
+                    key={it.id}
+                    className={`${i % 2 === 1 ? 'bg-neutral-50 print:bg-neutral-50' : ''} border-b border-neutral-100`}
+                  >
+                    <td className="py-2 pl-3 font-medium">{pName.get(it.productId) ?? it.productId}</td>
+                    <td className="py-2 text-right tabular-nums">{it.qty}</td>
+                    <td className="py-2 text-right tabular-nums">{formatINR(it.requestedRate)}</td>
+                    <td className="py-2 text-right tabular-nums text-neutral-500">
+                      {mrp != null ? formatINR(mrp) : '—'}
+                    </td>
+                    <td className="py-2 text-right tabular-nums text-neutral-500">
+                      {formatINR(it.discount)}
+                    </td>
+                    <td className="py-2 text-right tabular-nums text-neutral-500">
+                      {formatINR(it.schemeBenefit)}
+                    </td>
+                    <td className="py-2 pr-3 text-right font-semibold tabular-nums">
+                      {formatINR(it.netAmount)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <div className="flex justify-end">
+            <div className="w-56 space-y-1 text-xs">
+              <div className="flex justify-between text-neutral-500">
+                <span>Taxable value</span>
+                <span className="tabular-nums">{formatINR(totals.taxableTotal)}</span>
+              </div>
+              <div className="flex justify-between text-neutral-500">
+                <span>GST</span>
+                <span className="tabular-nums">{formatINR(totals.gstTotal)}</span>
+              </div>
+              {totals.discountTotal > 0 && (
+                <div className="flex justify-between text-neutral-500">
+                  <span>Discount</span>
+                  <span className="tabular-nums">− {formatINR(totals.discountTotal)}</span>
+                </div>
+              )}
+              {totals.schemeTotal > 0 && (
+                <div className="flex justify-between text-neutral-500">
+                  <span>Scheme</span>
+                  <span className="tabular-nums">− {formatINR(totals.schemeTotal)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between rounded-md bg-emerald-700 px-3 py-2 text-sm font-bold text-white print:bg-emerald-700">
+                <span>Net total</span>
+                <span className="tabular-nums">{formatINR(totals.netTotal)}</span>
+              </div>
+            </div>
+          </div>
+
+          {quotation.notes && (
+            <div className="border-t border-neutral-100 pt-4 text-xs text-neutral-600">
+              <div className="mb-1 font-medium text-neutral-500">Notes</div>
+              {quotation.notes}
+            </div>
+          )}
+
+          <div className="border-t border-neutral-100 pt-4 text-[11px] text-neutral-400">
+            This is a price quotation, not a tax invoice — Farm &amp; Farmers issues the GST
+            invoice separately. Prices are valid until {validUntil}.
           </div>
         </div>
-      </header>
-
-      <h1 className="text-lg font-semibold">Quotation {quotation.quoteNo}</h1>
-      <p>{party ?? '—'}</p>
-
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="border-b border-black text-left">
-            <th className="py-1">Product</th>
-            <th className="text-right">Qty</th>
-            <th className="text-right">Rate</th>
-            <th className="text-right">MRP</th>
-            <th className="text-right">Discount</th>
-            <th className="text-right">Scheme</th>
-            <th className="text-right">Net</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it) => {
-            const mrp = pMrp.get(it.productId);
-            return (
-              <tr key={it.id} className="border-b border-neutral-300">
-                <td className="py-1">{pName.get(it.productId) ?? it.productId}</td>
-                <td className="text-right">{it.qty}</td>
-                <td className="text-right">{formatINR(it.requestedRate)}</td>
-                <td className="text-right">{mrp != null ? formatINR(mrp) : '—'}</td>
-                <td className="text-right">{formatINR(it.discount)}</td>
-                <td className="text-right">{formatINR(it.schemeBenefit)}</td>
-                <td className="text-right">{formatINR(it.netAmount)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-        <tfoot>
-          <tr className="font-medium">
-            <td className="py-1" colSpan={6}>
-              Net total
-            </td>
-            <td className="text-right">{formatINR(totals.netTotal)}</td>
-          </tr>
-          <tr className="text-neutral-600">
-            <td className="py-1" colSpan={6}>
-              Taxable / GST
-            </td>
-            <td className="text-right">
-              {formatINR(totals.taxableTotal)} / {formatINR(totals.gstTotal)}
-            </td>
-          </tr>
-        </tfoot>
-      </table>
-
-      <p className="text-neutral-600">
-        Generated {new Date().toLocaleDateString('en-IN')} · valid until{' '}
-        {new Date(quotation.validUntil).toLocaleDateString('en-IN')}
-      </p>
+      </div>
     </main>
   );
 }
