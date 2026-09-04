@@ -16,6 +16,8 @@ import { writeAudit } from './audit';
 import { getConfig } from './config';
 import { getLead } from './lead';
 import { addActivity } from './activity';
+import { createNotification } from './notification';
+import { newDistributorAppointedAlert } from '@/domain/alerts';
 import type { AppUser } from '@/server/auth/session';
 
 export type DistributorRow = typeof distributors.$inferSelect;
@@ -169,6 +171,11 @@ export async function convertLead(
 
   await addActivity(user, { leadId, type: 'OTHER', outcome: 'Converted to distributor' });
   await writeAudit(user, 'distributor', row.id, exclusivityNote ? 'exclusivity_override' : 'convert', { leadId }, row);
+  await createNotification(
+    user.orgId,
+    newDistributorAppointedAlert({ distributorId: row.id, businessName: row.businessName }),
+    ymd(new Date()),
+  );
   await writeAudit(user, 'lead', leadId, 'convert',
     { stage: lead.stage, convertedDistributorId: null },
     { stage: leadAfter.stage, convertedDistributorId: row.id });
