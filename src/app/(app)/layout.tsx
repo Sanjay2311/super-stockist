@@ -11,11 +11,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <AppNav user={user} />
       <div className="flex-1 pb-16 md:pb-0">
         {demoLoaded && (
-          <div className="bg-amber-100 px-4 py-1 text-center text-xs text-amber-800">
+          <div className="bg-amber-100 px-4 py-1 text-center text-xs text-amber-800 print:hidden">
             Demo data is loaded — purge it from Settings before real use.
           </div>
         )}
-        <header className="flex items-center justify-between border-b px-4 py-2 text-sm">
+        <header className="flex items-center justify-between border-b px-4 py-2 text-sm print:hidden">
           <span className="text-neutral-500">
             {user.name} · {user.role}
           </span>

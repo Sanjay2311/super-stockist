@@ -7,6 +7,7 @@ import { getLead } from '@/server/services/lead';
 import { listProducts } from '@/server/services/product';
 import { computeQuoteLine, quoteTotals } from '@/domain/quote';
 import { formatINR } from '@/domain/money';
+import { PrintButton } from '../print-button';
 
 // ponytail: this route still renders inside the (app) layout, so it inherits the
 // AppNav sidebar + header chrome. A truly chrome-less print view (its own route
@@ -54,6 +55,10 @@ export default async function QuotationPrintPage({ params }: { params: Promise<{
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 p-8 text-sm text-black">
+      <div className="flex justify-end print:hidden">
+        <PrintButton />
+      </div>
+
       <header className="flex items-center gap-4 border-b-2 border-black pb-4">
         {/* eslint-disable-next-line @next/next/no-img-element -- static print asset, no next/image needed */}
         <img src="/farm-and-farmers-logo.jpg" alt="Farm & Farmers" className="h-16 w-16" />
