@@ -8,3 +8,4 @@ export * from './distributor';
 export * from './product';
 export * from './quotation';
 export * from './scheme';
+export * from './notification';
