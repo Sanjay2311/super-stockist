@@ -30,6 +30,7 @@ export default async function QuotationPrintPage({ params }: { params: Promise<{
     listProducts(user.orgId, { limit: 1000 }),
   ]);
   const pName = new Map(productRows.map((p) => [p.id, p.name]));
+  const pMrp = new Map(productRows.map((p) => [p.id, p.mrp]));
 
   const totals = quoteTotals(
     found.items.map((it) => {
@@ -62,32 +63,37 @@ export default async function QuotationPrintPage({ params }: { params: Promise<{
             <th className="py-1">Product</th>
             <th className="text-right">Qty</th>
             <th className="text-right">Rate</th>
+            <th className="text-right">MRP</th>
             <th className="text-right">Discount</th>
             <th className="text-right">Scheme</th>
             <th className="text-right">Net</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((it) => (
-            <tr key={it.id} className="border-b border-neutral-300">
-              <td className="py-1">{pName.get(it.productId) ?? it.productId}</td>
-              <td className="text-right">{it.qty}</td>
-              <td className="text-right">{formatINR(it.requestedRate)}</td>
-              <td className="text-right">{formatINR(it.discount)}</td>
-              <td className="text-right">{formatINR(it.schemeBenefit)}</td>
-              <td className="text-right">{formatINR(it.netAmount)}</td>
-            </tr>
-          ))}
+          {items.map((it) => {
+            const mrp = pMrp.get(it.productId);
+            return (
+              <tr key={it.id} className="border-b border-neutral-300">
+                <td className="py-1">{pName.get(it.productId) ?? it.productId}</td>
+                <td className="text-right">{it.qty}</td>
+                <td className="text-right">{formatINR(it.requestedRate)}</td>
+                <td className="text-right">{mrp != null ? formatINR(mrp) : '—'}</td>
+                <td className="text-right">{formatINR(it.discount)}</td>
+                <td className="text-right">{formatINR(it.schemeBenefit)}</td>
+                <td className="text-right">{formatINR(it.netAmount)}</td>
+              </tr>
+            );
+          })}
         </tbody>
         <tfoot>
           <tr className="font-medium">
-            <td className="py-1" colSpan={5}>
+            <td className="py-1" colSpan={6}>
               Net total
             </td>
             <td className="text-right">{formatINR(totals.netTotal)}</td>
           </tr>
           <tr className="text-neutral-600">
-            <td className="py-1" colSpan={5}>
+            <td className="py-1" colSpan={6}>
               Taxable / GST
             </td>
             <td className="text-right">

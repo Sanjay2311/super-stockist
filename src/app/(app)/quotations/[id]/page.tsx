@@ -48,6 +48,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
   ]);
   const partyName = party ?? '—';
   const pName = new Map(productRows.map((p) => [p.id, p.name]));
+  const pMrp = new Map(productRows.map((p) => [p.id, p.mrp]));
 
   const lines = found.items.map((it) => {
     const r = computeQuoteLine({
@@ -75,12 +76,13 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
   const waText = [
     `Quotation ${quotation.quoteNo}`,
     `Party: ${partyName}`,
-    ...items.map(
-      (it) =>
-        `${pName.get(it.productId) ?? it.productId} x ${it.qty} @ ${formatINR(
-          it.requestedRate,
-        )} = ${formatINR(it.netAmount)}`,
-    ),
+    ...items.map((it) => {
+      const mrp = pMrp.get(it.productId);
+      const mrpSuffix = mrp != null ? ` (MRP ${formatINR(mrp)})` : '';
+      return `${pName.get(it.productId) ?? it.productId} x ${it.qty} @ ${formatINR(
+        it.requestedRate,
+      )}${mrpSuffix} = ${formatINR(it.netAmount)}`;
+    }),
     `Total: ${formatINR(totals.netTotal)}`,
     `Valid until ${new Date(quotation.validUntil).toLocaleDateString('en-IN')}`,
   ].join('\n');
@@ -132,6 +134,8 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
               <th className="py-2">Product</th>
               <th className="text-right">Qty</th>
               <th className="text-right">Requested</th>
+              <th className="text-right">MRP</th>
+              <th className="text-right">Margin to MRP</th>
               <th className="text-right">List</th>
               {showCost && <th className="text-right">Floor</th>}
               {showCost && <th className="text-right">Target</th>}
@@ -142,11 +146,19 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             </tr>
           </thead>
           <tbody>
-            {items.map((it) => (
+            {items.map((it) => {
+              const mrp = pMrp.get(it.productId);
+              return (
               <tr key={it.id} className="border-b">
                 <td className="py-2">{pName.get(it.productId) ?? it.productId}</td>
                 <td className="text-right">{it.qty}</td>
                 <td className="text-right">{formatINR(it.requestedRate)}</td>
+                <td className="text-right">{mrp != null ? formatINR(mrp) : '—'}</td>
+                <td className="text-right">
+                  {mrp != null
+                    ? `${formatINR(mrp - it.requestedRate)} · ${(((mrp - it.requestedRate) / mrp) * 100).toFixed(0)}%`
+                    : '—'}
+                </td>
                 <td className="text-right">{formatINR(it.listRate)}</td>
                 {showCost && (
                   <td className="text-right">
@@ -171,18 +183,19 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
                   </span>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
           <tfoot>
             <tr className="font-medium">
-              <td className="py-2" colSpan={showCost ? 8 : 6}>
+              <td className="py-2" colSpan={showCost ? 10 : 8}>
                 Totals
               </td>
               <td className="text-right">{formatINR(totals.netTotal)}</td>
               <td />
             </tr>
             <tr className="text-neutral-500">
-              <td className="py-1" colSpan={showCost ? 8 : 6}>
+              <td className="py-1" colSpan={showCost ? 10 : 8}>
                 Taxable {formatINR(totals.taxableTotal)} · GST {formatINR(totals.gstTotal)} ·
                 Discount {formatINR(totals.discountTotal)} · Scheme {formatINR(totals.schemeTotal)}
               </td>
