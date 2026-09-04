@@ -86,7 +86,9 @@ export async function commandCenterSummary(user: AppUser, mode: 'morning' | 'eod
       // (Task 3), which already covers this per-employee. Cross-employee rollup here is
       // a straightforward follow-up, not added now to keep this task's query count bounded.
       quotationsSent: quotationsCreatedYesterday.length,
-      quotationsSentValue: 0,
+      quotationsSentValue: 0, // ponytail: needs a per-quotation netAmount sum on
+      // quotationsCreatedYesterday — same N+1-avoidance rationale as
+      // kpis.openQuotationsValue below; deferred together.
     },
     today: {
       meetingsToday: view.tasks.today.filter((t) => t.type === 'MEETING').length,
