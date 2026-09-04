@@ -61,11 +61,14 @@ export default async function QuotationPrintPage({ params }: { params: Promise<{
   });
 
   return (
-    <main className="mx-auto max-w-2xl p-6 text-sm text-neutral-900">
+    <main className="mx-auto max-w-2xl p-6 text-sm text-neutral-900 print:max-w-none print:p-0">
       {/* Backgrounds are dropped by default when a browser prints — this forces them
           through so the accent bar / table header / totals box survive Print and
-          Save-as-PDF, not just the on-screen preview. */}
+          Save-as-PDF, not just the on-screen preview. @page controls the browser's
+          own print margins so the document fits one page instead of stacking its
+          on-screen padding on top of the browser default (~12.7mm each side). */}
       <style>{`
+        @page { size: A4; margin: 12mm; }
         @media print {
           * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
@@ -83,9 +86,9 @@ export default async function QuotationPrintPage({ params }: { params: Promise<{
           use dummy values "for now"; replace with real details before this is
           sent to an actual distributor. */}
       <div className="overflow-hidden rounded-lg border border-neutral-200 shadow-sm print:border-0 print:shadow-none">
-        <div className="h-2 bg-emerald-700" />
+        <div className="h-2 bg-emerald-700 print:h-1.5" />
 
-        <div className="space-y-6 p-8">
+        <div className="space-y-6 p-8 print:space-y-4 print:p-6">
           <header className="flex items-start justify-between gap-6">
             <div className="flex items-center gap-4">
               {/* eslint-disable-next-line @next/next/no-img-element -- static print asset, no next/image needed */}
