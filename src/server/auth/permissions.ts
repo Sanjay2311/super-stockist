@@ -11,7 +11,7 @@ export type Action =
   | 'scheme.view' | 'scheme.edit'
   | 'quotation.view' | 'quotation.create' | 'quotation.approve' | 'quotation.setStatus'
   | 'config.view' | 'config.edit'
-  | 'employee.manage'
+  | 'employee.manage' | 'employee.view'
   | 'dashboard.view';
 
 const OWNER_ACTIONS: Action[] = [
@@ -24,7 +24,7 @@ const OWNER_ACTIONS: Action[] = [
   'scheme.view', 'scheme.edit',
   'quotation.view', 'quotation.create', 'quotation.approve', 'quotation.setStatus',
   'config.view', 'config.edit',
-  'employee.manage', 'dashboard.view',
+  'employee.manage', 'employee.view', 'dashboard.view',
 ];
 
 const SALES_ACTIONS: Action[] = [
@@ -34,7 +34,7 @@ const SALES_ACTIONS: Action[] = [
   'distributor.view', 'distributor.create',
   'scheme.view',
   'quotation.view', 'quotation.create', 'quotation.setStatus',
-  'config.view', 'dashboard.view',
+  'config.view', 'employee.view', 'dashboard.view',
 ];
 
 const MATRIX: Record<Role, ReadonlySet<Action>> = {
