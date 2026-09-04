@@ -15,7 +15,6 @@ import { formatINR } from '@/domain/money';
 import { QUOTATION_STATUSES } from '@/lib/schemas';
 import { submitQuotationAction, setStatusAction } from '../actions';
 import { decideApprovalAction } from '../../approvals/actions';
-import { CopyWhatsApp } from './copy-whatsapp';
 
 const APPROVAL_BADGE: Record<string, string> = {
   AUTO: 'bg-green-100 text-green-800',
@@ -73,20 +72,6 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
     ? (await listPendingApprovals(user.orgId)).filter((a) => a.quotationId === id)
     : [];
 
-  const waText = [
-    `Quotation ${quotation.quoteNo}`,
-    `Party: ${partyName}`,
-    ...items.map((it) => {
-      const mrp = pMrp.get(it.productId);
-      const mrpSuffix = mrp != null ? ` (MRP ${formatINR(mrp)})` : '';
-      return `${pName.get(it.productId) ?? it.productId} x ${it.qty} @ ${formatINR(
-        it.requestedRate,
-      )}${mrpSuffix} = ${formatINR(it.netAmount)}`;
-    }),
-    `Total: ${formatINR(totals.netTotal)}`,
-    `Valid until ${new Date(quotation.validUntil).toLocaleDateString('en-IN')}`,
-  ].join('\n');
-
   return (
     <main className="max-w-4xl space-y-6 p-6">
       <div>
@@ -122,9 +107,8 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
           <button className="rounded border px-3 py-1.5 text-sm">Update status</button>
         </form>
         <Link href={`/quotations/${id}/print`} className="rounded border px-3 py-1.5 text-sm">
-          Print / WhatsApp
+          Print
         </Link>
-        <CopyWhatsApp text={waText} />
       </div>
 
       <section className="rounded border p-4">
