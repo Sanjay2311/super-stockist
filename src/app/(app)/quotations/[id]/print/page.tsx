@@ -54,6 +54,18 @@ export default async function QuotationPrintPage({ params }: { params: Promise<{
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 p-8 text-sm text-black">
+      <header className="flex items-center gap-4 border-b-2 border-black pb-4">
+        {/* eslint-disable-next-line @next/next/no-img-element -- static print asset, no next/image needed */}
+        <img src="/farm-and-farmers-logo.jpg" alt="Farm & Farmers" className="h-16 w-16" />
+        <div>
+          <div className="text-lg font-bold">Farm &amp; Farmers</div>
+          {/* ponytail: GSTIN unknown — add it here once F&F confirms their GST number */}
+          <div className="text-xs text-neutral-600">
+            Jaipur, Rajasthan · +91 9116566275 · farmandfarmersinfo@gmail.com
+          </div>
+        </div>
+      </header>
+
       <h1 className="text-lg font-semibold">Quotation {quotation.quoteNo}</h1>
       <p>{party ?? '—'}</p>
 
