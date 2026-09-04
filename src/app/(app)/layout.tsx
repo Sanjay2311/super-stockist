@@ -2,10 +2,16 @@ import { requireUser } from '@/server/auth/session';
 import { signOut } from '@/app/(auth)/login/actions';
 import { hasDemoData } from '@/server/db/seed';
 import { AppNav } from '@/components/app-nav';
+import { listNotifications, unreadCount } from '@/server/services/notification';
+import { NotificationBell } from '@/components/notification-bell';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const demoLoaded = await hasDemoData(user.orgId);
+  const [demoLoaded, notifications, unread] = await Promise.all([
+    hasDemoData(user.orgId),
+    listNotifications(user, { limit: 20 }),
+    unreadCount(user),
+  ]);
   return (
     <div className="flex min-h-dvh">
       <AppNav user={user} />
@@ -19,6 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="text-neutral-500">
             {user.name} · {user.role}
           </span>
+          <NotificationBell notifications={notifications} unread={unread} />
           <form action={signOut}>
             <button className="text-neutral-500 hover:text-neutral-900">Sign out</button>
           </form>
