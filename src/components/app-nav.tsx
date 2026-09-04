@@ -30,7 +30,7 @@ export function AppNav({ user }: { user: AppUser }) {
   const items = visibleNavItems(user.role);
   return (
     <>
-      <aside className="hidden md:flex md:w-56 md:flex-col md:gap-1 md:border-r md:p-3">
+      <aside className="hidden md:flex md:w-56 md:flex-col md:gap-1 md:border-r md:p-3 print:hidden">
         <div className="px-2 py-3 text-sm font-semibold">Super Stockist</div>
         {items.map((i) => (
           <Link
@@ -45,7 +45,7 @@ export function AppNav({ user }: { user: AppUser }) {
           </Link>
         ))}
       </aside>
-      <nav className="fixed inset-x-0 bottom-0 z-10 flex justify-around border-t bg-white py-2 md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-10 flex justify-around border-t bg-white py-2 md:hidden print:hidden">
         {items.slice(0, 5).map((i) => (
           <Link
             key={i.href}
