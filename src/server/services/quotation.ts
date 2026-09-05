@@ -16,7 +16,7 @@ import { getLead } from './lead';
 import { activeSchemesFor, toSchemeDef } from './scheme';
 import { getConfig } from './config';
 import { writeAudit } from './audit';
-import type { Paise } from '@/domain/money';
+import { formatINR, type Paise } from '@/domain/money';
 import type { AppUser } from '@/server/auth/session';
 
 export type QuotationRow = typeof quotations.$inferSelect;
@@ -359,7 +359,7 @@ function summarize(entry: { entityType: string; action: string; oldValues: unkno
   }
   if (entry.entityType === 'price_approval') {
     if (entry.action === 'auto_approve' && nv?.requestedRate != null) {
-      return `Self-approved a line at ₹${(Number(nv.requestedRate) / 100).toFixed(2)}`;
+      return `Self-approved a line at ${formatINR(Number(nv.requestedRate))}`;
     }
     if (entry.action === 'decide' && nv?.decision) return `Line ${String(nv.decision).toLowerCase()}`;
   }
