@@ -97,6 +97,10 @@ export async function quotationsReport(orgId: string, filters: ReportFilters) {
 export async function employeesReport(orgId: string, filters: ReportFilters): Promise<EmployeeScorecard[]> {
   const to = filters.to ? new Date(filters.to) : new Date();
   const from = filters.from ? new Date(filters.from) : new Date(to.getTime() - 6 * 86_400_000);
+  // territoryId is deliberately NOT applied here (same "not silently ignored" caveat as
+  // categoryId elsewhere in this file): an employee has no direct territoryId column —
+  // the only path is the time-boxed territory_assignments table (fromDate/toDate), which
+  // needs "current assignment as of the report window" logic, not a plain equality filter.
   return listScorecards(orgId, from, to, { employeeId: filters.employeeId ?? undefined });
 }
 

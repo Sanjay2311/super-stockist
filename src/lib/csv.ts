@@ -11,7 +11,9 @@ const FORMULA_PREFIX = /^[=+\-@]/;
 
 function escapeCsvField(raw: unknown): string {
   let s = raw == null ? '' : String(raw);
-  if (FORMULA_PREFIX.test(s)) s = `'${s}`;
+  // A negative number stringifies to a leading '-' too, but it's not a formula-injection
+  // risk — only text fields (user-entered names etc.) need the neutralizing prefix.
+  if (typeof raw !== 'number' && FORMULA_PREFIX.test(s)) s = `'${s}`;
   if (NEEDS_QUOTING.test(s)) s = `"${s.replace(/"/g, '""')}"`;
   return s;
 }
