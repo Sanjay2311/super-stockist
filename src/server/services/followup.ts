@@ -14,6 +14,7 @@ export type LeadLite = {
   probability: number;
   nextFollowUpAt: string | null;
   assignee: string | null;
+  assignedEmployeeId: string | null;
 };
 
 export async function getFollowUpBuckets(
@@ -44,6 +45,7 @@ export async function getFollowUpBuckets(
       probability: distributorLeads.probability,
       nextFollowUpAt: distributorLeads.nextFollowUpAt,
       assignee: employees.name,
+      assignedEmployeeId: distributorLeads.assignedEmployeeId,
     })
     .from(distributorLeads)
     .leftJoin(employees, eq(employees.id, distributorLeads.assignedEmployeeId))

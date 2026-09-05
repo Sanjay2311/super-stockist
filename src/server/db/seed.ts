@@ -7,6 +7,7 @@ import { distributors } from './schema/distributor';
 import { schemes, schemeApplications } from './schema/scheme';
 import { quotations, quotationItems, priceApprovals } from './schema/quotation';
 import { categories, products, productPrices } from './schema/product';
+import { notifications } from './schema/notification';
 import { scoreDistributor, type ScoreInputs, type ScoreWeights } from '@/domain/scoring';
 import { CONFIG_DEFAULTS } from '@/server/services/config';
 import { stageRank, type LeadStage } from '@/domain/pipeline';
@@ -314,6 +315,13 @@ export async function purgeDemo(orgId: string): Promise<void> {
   await db.delete(distributors).where(and(eq(distributors.orgId, orgId), eq(distributors.isDemo, true)));
 
   await db.delete(territories).where(and(eq(territories.orgId, orgId), eq(territories.isDemo, true)));
+
+  // Notifications carry no `isDemo` flag — they're a derived/regenerable read model
+  // rebuilt by `runAlertScan`, not source-of-truth data, so wiping every row for this
+  // org is safe and matches how purge already resets other derived state. Without
+  // this, the bell could still show alerts deep-linking to now-deleted demo rows.
+  await db.delete(notifications).where(eq(notifications.orgId, orgId));
+
   console.log('purgeDemo: demo rows removed');
 }
 

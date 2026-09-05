@@ -7,3 +7,13 @@ assets = { directory = ".open-next/assets", binding = "ASSETS" }
 [vars]
 NEXT_PUBLIC_SUPABASE_URL = ""
 # secrets set via `wrangler secret put`: SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL, CRON_SECRET
+
+[triggers]
+# 2am UTC (7:30am IST) nightly alert scan, intended to hit /api/cron/alerts (gated by
+# CRON_SECRET). NOT YET WIRED: Cloudflare invokes a scheduled trigger via the Worker's
+# `scheduled()` export, but the stock OpenNext build (.open-next/worker.js) only exports
+# `fetch` — there is no custom entrypoint here that calls the route on a schedule. This
+# trigger is declared so the config exists, but firing it today would invoke nothing.
+# See PONYTAIL-DEBT.md. Until that's wired, the manual "Run alert scan" button in
+# Settings is the only way the scan actually runs, deployed or not.
+crons = ["0 2 * * *"]

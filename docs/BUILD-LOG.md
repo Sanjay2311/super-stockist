@@ -1550,3 +1550,169 @@ One line per M2b task (briefs in
   catalogue and guards (`if (dryFruits)` / `if (priced.length === 2)`) so a
   catalogue-less `seedDemo()` (the unit tests) still inserts the distributors and
   skips the scheme/quote rows without error.
+
+## 2026-09-05 — Milestone 3 (Command Center): Tasks 1–15
+
+Milestone 3 was tracked task-by-task in the SDD ledger
+(`.superpowers/sdd/2026-09-04-super-stockist-milestone-3-command-center/progress.md`),
+not this file — Tasks 1–14 land here now as one consolidated entry; Task 15 (this
+task) gets its own subsection below since it's the one that actually touched files
+tracked by this log.
+
+- **Task 1** (commit `79006d0`) — `notifications` schema + migration **0012**:
+  `src/server/db/schema/notification.ts` — severity/category/entity/`targetUserId`/
+  `dedupeDate`/`readAt`, unique index on `(orgId, entityType, entityId, category,
+  dedupeDate)` for same-day dedup.
+- **Task 2** (commit `fa4822b`) — `src/server/services/employee.ts`:
+  `listEmployees(orgId, opts?)`, reused by every later task that needs an
+  employee picker or scorecard subject.
+- **Task 3** (commit `68d2420`) — `src/server/services/scorecard.ts`: range-
+  generalized `ScorecardCounts` (Activity + Funnel, kept separate per spec §5.7),
+  `listScorecards`, `weeklyComparison` (this week vs last week).
+- **Task 4** (commit `4ba0b07`) — `src/domain/alerts.ts`: pure `AlertCandidate` +
+  7 classifiers (follow-up overdue, quotation stale, distributor review due,
+  inactive distributor, empty territory, missing daily report, new-distributor
+  positive event) — no DB, no `Date.now()`, caller passes `now`/pre-fetched facts.
+- **Task 5** (commit `d37e8c5`) — `src/server/services/notification.ts`:
+  `runAlertScan` (writes deduped `notifications` rows from the Task 4
+  classifiers), `listNotifications`/`markRead`/`unreadCount`/`createNotification`;
+  wired `createNotification` inline into `convertLead` for the positive
+  new-distributor event.
+- **Task 6** (commit `847243c`) — `src/app/api/cron/alerts/route.ts`: `GET`
+  endpoint gated on an `x-cron-secret` header (`CRON_SECRET` env), calls
+  `runAlertScan`; system-generated, does not `writeAudit`.
+- **Task 7** (commit `76a7445`) — `src/components/notification-bell.tsx`: header
+  bell + dropdown panel (client component), grouped by severity
+  (critical/attention/positive), mark-read action, deep-links to the entity;
+  mounted in `src/app/(app)/layout.tsx`.
+- **Task 8** (commits `65bf6d2`, fix `af56dee`) — `src/server/services/
+  commandCenter.ts`: `commandCenterSummary(user, mode)` assembles the Dashboard
+  read model (today/yesterday/forecast/attention/growth/kpis/funnel) from the
+  existing lead/quotation/distributor/territory/task/follow-up services; three
+  fields (`yesterday.activityCount`, `yesterday.quotationsSentValue`,
+  `kpis.openQuotationsValue`) deliberately hardcoded `0` with `// ponytail:`
+  comments (see PONYTAIL-DEBT).
+- **Task 9** (commit `037dff1`) — `src/app/(app)/page.tsx` + `mode-toggle.tsx`:
+  replaces the M1 placeholder Dashboard with the real Command Center — morning/EOD
+  mode toggle, "What happened?/is happening?/will happen?" sections, "What needs
+  my attention?", "Where is my growth?", "Key numbers" KPI cards, and the pipeline
+  funnel (merges the spec's separate Command Center + Executive Dashboard
+  sections into this one route — see PONYTAIL-DEBT).
+- **Task 10** (commit `5b8524f`) — `src/lib/filters.ts` (`parseFilters`,
+  `ReportFilters`) + `src/components/global-filters.tsx` (client filter bar —
+  date range, territory, employee — persisted via URL params + `sessionStorage`).
+- **Task 11** (commits `d8b02ac`, fix `cbbaab2`) — `src/server/services/
+  reports.ts`: `pipelineReport`, `quotationsReport`, `employeesReport`,
+  `distributorsReport`, each taking `ReportFilters`.
+- **Task 12** (commit `02ef476`) — Reports screens: `src/app/(app)/reports/
+  page.tsx` (hub) + `pipeline/`, `quotations/`, `employees/`, `distributors/`
+  pages, each with the `<GlobalFilters>` bar and an Export CSV link.
+- **Task 13** (commit `f96c8e2`) — `src/app/api/reports/[kind]/export/route.ts`:
+  one dynamic route (SheetJS/`xlsx`) serving CSV for all four report kinds.
+- **Task 14** (commits `5b9e69d`, fix `fc67515`) — `getQuotationHistory` added to
+  `src/server/services/quotation.ts` (reads `audit_log` rows for a quotation,
+  oldest first — `orderBy(asc(auditLog.createdAt))` — joined to the acting user's
+  name); a "History" section added to `src/app/(app)/quotations/[id]/page.tsx`.
+- **Task 15** (this entry) — smoke sweep extension + debt ledger, detail below.
+
+### Task 15 detail
+
+- **`tests/e2e/smoke-owner.spec.ts`** — one new manual `test(...)` appended
+  inside the existing `test.describe('OWNER smoke sweep', ...)`, after the m2b
+  test: visits `/`, asserts `Command Center` heading + both mode-toggle links;
+  clicks `EOD`, asserts the URL carries `?mode=eod` and `Tomorrow: priorities`
+  renders; visits `/reports` then `/reports/pipeline` (asserts a table renders)
+  then `/reports/employees` (asserts the page renders — data may be empty on
+  fresh demo data); builds and submits its own quotation via the UI (the
+  demo-seeded quotation is inserted directly via `db.insert()` in `seed.ts`,
+  bypassing `createQuotation()`, so it carries zero audit rows — only a
+  quotation built through the real create/submit path has History entries) and
+  asserts the History section shows a real entry (`ol li.border-l-2`, the class
+  only a real row carries) with the "No history yet." empty state absent;
+  opens the notification bell and confirms the panel opens with no server
+  error. Matches the file's existing `assertNoServerError` helper and
+  create-via-UI convention (same pattern as the `m2b` test); not run here per
+  the brief — no browser/dev server available in this dispatch, same as every
+  other spec in this file.
+- **`docs/BUILD-LOG.md`** — this consolidated Tasks 1–15 entry (M3 tasks were
+  previously tracked only in the SDD ledger, not this file).
+- **`docs/PONYTAIL-DEBT.md`** — 4 new rows: (1) the deferred
+  `commandCenterSummary` stubs (`yesterday.activityCount`,
+  `yesterday.quotationsSentValue`, `kpis.openQuotationsValue`) plus the fact that
+  Task 9's `/` page omits all three from the UI entirely, not just displays a
+  literal `0`; (2) the Command Center / Executive Dashboard merge into the single
+  `/` route, with the reasoning (spec §6.1 nav has one "Dashboard" entry, not
+  two); (3) every money/inventory/order-dependent block dropped wholesale from
+  Command Center, Executive Dashboard, Reports, and the alert scan this
+  milestone, itemized, with upgrade path "add with Phase 2 Orders/Inventory
+  schema, reusing the same KPI-card/block components"; (4) global filters
+  (Tasks 10/12) apply only to the four Reports screens, not to `/`'s
+  `commandCenterSummary` — a scope decision the user confirmed before dispatch
+  (recorded in the plan's Self-Review section and the SDD progress ledger).
+- Tests: `npm test` → run twice, stable pass count both times (see the run
+  logged at commit time below). `npx tsc --noEmit` clean. `npm run lint` clean.
+  `npm run build` succeeds.
+- Deviations: none — this task only extends the existing manual e2e spec and
+  updates two docs files, per its brief.
+- Shortcuts: none beyond the 4 PONYTAIL-DEBT rows above, all pre-existing scope
+  decisions from Tasks 8/9/10/12 being formally logged for the first time here,
+  not new corners cut by Task 15 itself.
+
+### Final-review fix wave (2026-09-05)
+
+One dispatch closing 1 Critical + 11 Important findings from the whole-branch
+review, after all 15 tasks above individually passed review:
+
+- **Critical** — `commandCenterSummary` (`src/server/services/commandCenter.ts`)
+  never scoped anything by role/employeeId, leaking org-wide lead/task/follow-up
+  data and OWNER-only fields (`attention.pendingApprovals`,
+  `.missingDailyReports`, `.exclusivityOverrides`) to SALES. Fixed: the same
+  `scope = { assignedEmployeeId }` pattern the M1 dashboard used is restored for
+  `listLeads`/`getTodayView`/`getFollowUpBuckets`; the three OWNER-only
+  `attention` fields are now `null` (not computed) for a role lacking the
+  matching `can(user, ...)` permission, and `src/app/(app)/page.tsx` renders
+  those sections only when present. Quotations/distributors stay org-wide,
+  matching how `/quotations` and `/distributors` already treat SALES elsewhere.
+- `notification.ts`'s `markRead` gained the same visibility check
+  `listNotifications` already had (a shared `visibilityConds` helper), so a
+  caller can no longer mark a notification outside their scope as read; added
+  `markAllRead` + a bell button + a raised panel fetch limit (20 → 100).
+- `api/cron/alerts/route.ts` no longer imports `db`/`orgs` directly — new
+  `src/server/services/org.ts` (`listOrgs`) closes the one architectural-boundary
+  crossing outside `services`/`db`.
+- Consolidated three reinvented IST-offset helpers into one exported
+  `istDayKey`/`istDayBounds` pair in `dailyReport.ts`; fixed genuine UTC-vs-IST
+  bugs this surfaced in `commandCenter.ts` (month-start, yesterday bounds),
+  `reports.ts` (`distributorsReport`'s yesterday key), and `distributor.ts`'s
+  `dedupeDate` computation.
+- `reports.ts`: `pipelineReport`/`quotationsReport`/`distributorsReport` now
+  apply `from`/`to`/`territoryId`/`employeeId` (previously only `employeesReport`
+  did, despite all four report pages rendering the same `<GlobalFilters>`);
+  `categoryId` stays deliberately unapplied on pipeline/distributors (no
+  reliable category association exists on either table today) — documented
+  inline and in PONYTAIL-DEBT.
+- `followup.ts`'s `LeadLite` gained `assignedEmployeeId`, so
+  `followUpOverdueAlert` targets the lead's actual assignee instead of a
+  hardcoded `null` (matching `quotationStaleAlert`'s pattern).
+- Replaced the `xlsx` (SheetJS) CSV export in `api/reports/[kind]/export/
+  route.ts` with a small hand-rolled `src/lib/csv.ts` writer that also
+  neutralizes leading `=`/`+`/`-`/`@` (CSV-formula-injection); removed the
+  `xlsx` dependency entirely (`npm uninstall xlsx`).
+- `commandCenter.ts`'s missing-daily-report check used `gte(reportDate,
+  yesterday)` (a submitted-today-but-not-yesterday employee wrongly counted as
+  compliant); now `eq(reportDate, yesterdayYmd)`, matching `notification.ts`/
+  `reports.ts`.
+- Added a `[triggers]` cron block to `wrangler.toml` (`0 2 * * *`, 2am UTC) —
+  inert until this app is deployed to Cloudflare Workers, but the config now
+  exists for when it is; the Settings page's "runs nightly ... once deployed"
+  copy was already accurate and needed no change.
+- `seed.ts`'s `purgeDemo` now also deletes all `notifications` rows for the org
+  (the table carries no `isDemo` flag — it's a derived read model, safe to wipe).
+- Tests: `npm test` run twice, stable pass count both times; new coverage added
+  for the SALES-scoping fix, `markRead`'s ownership check, a report filter
+  actually changing its result set, `missingDailyReports`'s corrected predicate,
+  and `followUpOverdueAlert`'s real employee id. `npx tsc --noEmit` clean.
+  `npm run lint` clean. `npm run build` succeeds.
+- PONYTAIL-DEBT: corrected the global-filters row (Reports filters now actually
+  apply, `categoryId` caveat documented) and added one new row for the
+  deliberately-parked notification retention/auto-resolve/pagination gap.

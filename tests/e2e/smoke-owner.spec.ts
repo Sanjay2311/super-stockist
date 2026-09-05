@@ -276,6 +276,70 @@ test.describe('OWNER smoke sweep', () => {
     await expect(page.getByRole('cell', { name: schemeName })).toBeVisible();
   });
 
+  // M3 sweep: Command Center morning/EOD modes, Reports (pipeline/employees), a
+  // quotation's History section, and the notification bell.
+  test('m3: command center modes, reports, quotation history, notification bell', async ({ page }) => {
+    // ── Command Center ("/") ────────────────────────────────────────────────
+    await page.goto('/');
+    await assertNoServerError(page);
+    await expect(page.getByRole('heading', { name: 'Command Center' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Morning' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'EOD' })).toBeVisible();
+
+    await page.getByRole('link', { name: 'EOD' }).click();
+    await expect(page).toHaveURL(/\?mode=eod$/);
+    await assertNoServerError(page);
+    await expect(page.getByText('Tomorrow: priorities')).toBeVisible();
+
+    // ── Reports hub, pipeline report (table), employees report (may be empty) ──
+    await page.goto('/reports');
+    await assertNoServerError(page);
+    await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
+
+    await page.goto('/reports/pipeline');
+    await assertNoServerError(page);
+    await expect(page.getByRole('heading', { name: 'Pipeline report' })).toBeVisible();
+    await expect(page.locator('table').first()).toBeVisible();
+
+    await page.goto('/reports/employees');
+    await assertNoServerError(page);
+    await expect(page.getByRole('heading', { name: 'Employees report' })).toBeVisible();
+
+    // ── Quotation detail: History section ──────────────────────────────────
+    // Build our own quotation via the UI rather than opening whichever quotation
+    // happens to sort first on /quotations: the demo-seeded quotation is inserted
+    // directly via db.insert() in seed.ts (bypassing createQuotation()), so it has
+    // zero audit rows and no History entries. Only quotations created through the
+    // real create/submit path get one.
+    await page.goto('/quotations/new');
+    await assertNoServerError(page);
+    await page.getByLabel('Party').selectOption({ label: 'Coastal Trading Company' });
+    await page.getByLabel('Valid until').fill('2026-12-31');
+    await page.getByLabel('Product').selectOption({ index: 1 });
+    await page.getByLabel('Qty').fill('5');
+    await page.getByRole('button', { name: 'Create quotation' }).click();
+    await expect(page).toHaveURL(/\/quotations\/[0-9a-f-]{36}$/);
+    await assertNoServerError(page);
+    await page.getByRole('button', { name: 'Submit quotation' }).click();
+    await assertNoServerError(page);
+
+    await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+    // The empty state ("No history yet.") renders as its own <li> in the same <ol>, so
+    // asserting any <li> is visible would pass whether or not real history exists. Assert
+    // the empty state is absent AND that a real entry (which carries the
+    // `border-l-2 border-neutral-200` class in the page's JSX; the empty-state <li> does
+    // not) is present.
+    await expect(page.getByText('No history yet.')).toHaveCount(0);
+    await expect(page.locator('ol li.border-l-2').first()).toBeVisible();
+
+    // ── Notification bell: open the panel (with or without unread items) ──
+    const bell = page.getByRole('button', { name: 'Notifications' });
+    await expect(bell).toBeVisible();
+    await bell.click();
+    await assertNoServerError(page);
+    await expect(page.getByRole('button', { name: 'Close notifications' })).toBeVisible();
+  });
+
   // NOTE: "Purge demo data" is intentionally NOT exercised here — it is destructive
   // (wipes every is_demo row) and would break a repeatable smoke run. It is covered at
   // the service layer by tests/services/seed.test.ts (seedDemo / purgeDemo / hasDemoData),

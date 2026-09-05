@@ -12,13 +12,14 @@ const NAV_ITEMS: Item[] = [
   { href: '/pipeline', label: 'Pipeline' },
   { href: '/leads', label: 'Leads' },
   { href: '/distributors', label: 'Distributors' },
+  { href: '/reports/employees', label: 'Employee Activity', ownerOnly: true },
   { href: '/quotations', label: 'Quotations' },
   { href: '/approvals', label: 'Approvals', ownerOnly: true },
   { href: '/territories', label: 'Territories' },
   { href: '/products', label: 'Products' },
   { href: '/schemes', label: 'Schemes', ownerOnly: true },
   { href: '/daily-report', label: 'Daily Report' },
-  { href: '/reports/daily', label: 'Reports', ownerOnly: true },
+  { href: '/reports', label: 'Reports', ownerOnly: true },
   { href: '/settings', label: 'Settings', ownerOnly: true },
 ];
 

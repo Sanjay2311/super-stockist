@@ -12,8 +12,20 @@ export type ReportRow = typeof employeeDailyReports.$inferSelect;
 // Callers pass raw form values; `reportDate` coercion + `areasVisited` default come from the schema.
 export type DailyReportInput = z.input<typeof dailyReportSchema>;
 
-const IST_OFFSET_MIN = 330;
+// Shared IST math — the plan's Global Constraints require every service that needs
+// "what IST calendar day does this instant fall in" to go through the one helper
+// below (`istDayKey`) rather than reinventing the 330-minute offset. Exported so
+// `notification.ts`, `scorecard.ts`, `commandCenter.ts`, `reports.ts` and
+// `distributor.ts` can import it — safe since this is a service module, not a page,
+// so there's no import-direction cycle.
+export const IST_OFFSET_MIN = 330;
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
+
+/** The 'YYYY-MM-DD' IST calendar day that `date` (a UTC instant) falls in. */
+export function istDayKey(date: Date): string {
+  const shifted = new Date(date.getTime() + IST_OFFSET_MIN * 60_000);
+  return shifted.toISOString().slice(0, 10);
+}
 
 /** UTC Date bounds `[start, end)` for the IST calendar day that `date` falls in. */
 export function istDayBounds(date: Date): { start: Date; end: Date } {
