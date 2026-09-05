@@ -6,6 +6,7 @@ import {
   getQuotation,
   redactQuotationItems,
   listPendingApprovals,
+  getQuotationHistory,
 } from '@/server/services/quotation';
 import { getDistributor } from '@/server/services/distributor';
 import { getLead } from '@/server/services/lead';
@@ -71,6 +72,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
   const pending = canApprove
     ? (await listPendingApprovals(user.orgId)).filter((a) => a.quotationId === id)
     : [];
+  const history = await getQuotationHistory(user.orgId, id);
 
   return (
     <main className="max-w-4xl space-y-6 p-6">
@@ -231,6 +233,21 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
           )}
         </section>
       )}
+
+      <section className="rounded border p-4">
+        <h2 className="mb-3 text-sm font-medium">History</h2>
+        <ol className="space-y-2 text-sm">
+          {history.map((h) => (
+            <li key={h.id} className="border-l-2 border-neutral-200 pl-3">
+              <div className="text-neutral-500">
+                {new Date(h.occurredAt).toLocaleString('en-IN')} · <span className="font-medium text-neutral-800">{h.userName}</span>
+              </div>
+              <div>{h.summary}</div>
+            </li>
+          ))}
+          {history.length === 0 && <li className="text-neutral-400">No history yet.</li>}
+        </ol>
+      </section>
     </main>
   );
 }

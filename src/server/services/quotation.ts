@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, count, desc, eq, getTableColumns, isNull, like } from 'drizzle-orm';
+import { and, asc, count, desc, eq, getTableColumns, inArray, isNull, like, or, sql } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { quotations, quotationItems, priceApprovals } from '@/server/db/schema/quotation';
 import { schemeApplications } from '@/server/db/schema/scheme';
 import { products } from '@/server/db/schema/product';
+import { auditLog } from '@/server/db/schema/audit';
+import { users } from '@/server/db/schema/identity';
 import { quotationSchema, QUOTATION_STATUSES } from '@/lib/schemas';
 import { assertCan, stripFinancial } from '@/server/auth/permissions';
 import { classifyRate, computeQuoteLine, type RateClass } from '@/domain/quote';
@@ -341,4 +343,57 @@ export async function setQuotationStatus(user: AppUser, id: string, status: stri
     .where(eq(quotations.id, id)).returning();
   await writeAudit(user, 'quotation', id, 'status', { status: before.status }, { status });
   return row;
+}
+
+export interface QuotationHistoryEntry {
+  id: string; action: string; entityType: string; occurredAt: Date; userName: string; summary: string;
+}
+
+function summarize(entry: { entityType: string; action: string; oldValues: unknown; newValues: unknown }): string {
+  const nv = entry.newValues as Record<string, unknown> | null;
+  const ov = entry.oldValues as Record<string, unknown> | null;
+  if (entry.entityType === 'quotation') {
+    if (entry.action === 'create') return 'Created';
+    if (entry.action === 'submit') return 'Submitted';
+    if (entry.action === 'status' && ov && nv) return `Status: ${ov.status} → ${nv.status}`;
+  }
+  if (entry.entityType === 'price_approval') {
+    if (entry.action === 'auto_approve' && nv?.requestedRate != null) {
+      return `Self-approved a line at ₹${(Number(nv.requestedRate) / 100).toFixed(2)}`;
+    }
+    if (entry.action === 'decide' && nv?.decision) return `Line ${String(nv.decision).toLowerCase()}`;
+  }
+  return entry.action;
+}
+
+export async function getQuotationHistory(orgId: string, quotationId: string): Promise<QuotationHistoryEntry[]> {
+  const approvalIds = (await db.select({ id: priceApprovals.id }).from(priceApprovals)
+    .innerJoin(quotationItems, eq(quotationItems.id, priceApprovals.quotationItemId))
+    .where(eq(quotationItems.quotationId, quotationId))).map((r) => r.id);
+
+  const rows = await db.select({
+    id: auditLog.id, action: auditLog.action, entityType: auditLog.entityType,
+    occurredAt: auditLog.createdAt, userId: auditLog.userId,
+    oldValues: auditLog.oldValues, newValues: auditLog.newValues, userName: users.name,
+  }).from(auditLog)
+    // auditLog.userId is `text` (system/test actors need not be uuids) while users.id is a
+    // real `uuid` column -- Postgres has no uuid = text operator, so cast the uuid side to
+    // text explicitly rather than eq()'ing the two columns directly.
+    .leftJoin(users, sql`${users.id}::text = ${auditLog.userId}`)
+    .where(and(
+      eq(auditLog.orgId, orgId),
+      or(
+        and(eq(auditLog.entityType, 'quotation'), eq(auditLog.entityId, quotationId)),
+        approvalIds.length
+          ? and(eq(auditLog.entityType, 'price_approval'), inArray(auditLog.entityId, approvalIds))
+          : undefined,
+      ),
+    ))
+    .orderBy(asc(auditLog.createdAt));
+
+  return rows.map((r) => ({
+    id: r.id, action: r.action, entityType: r.entityType, occurredAt: r.occurredAt,
+    userName: r.userName ?? r.userId,
+    summary: summarize(r),
+  }));
 }

@@ -7,14 +7,19 @@ import { distributors } from '@/server/db/schema/distributor';
 import { priceApprovals, quotationItems } from '@/server/db/schema/quotation';
 import { schemeApplications } from '@/server/db/schema/scheme';
 import { auditLog } from '@/server/db/schema/audit';
+import { users } from '@/server/db/schema/identity';
 import {
   createQuotation, getQuotation, submitQuotation, decideApproval, listPendingApprovals,
-  setQuotationStatus, redactQuotationItem,
+  setQuotationStatus, redactQuotationItem, getQuotationHistory,
 } from '@/server/services/quotation';
 import { createScheme } from '@/server/services/scheme';
 import type { AppUser } from '@/server/auth/session';
 
-const owner = (orgId: string): AppUser => ({ id: 'u-owner', email: 'o', name: 'O', role: 'OWNER', employeeId: null, orgId });
+// users.id is a real `uuid` column (Supabase auth uid in production), so the synthetic
+// owner id must be a valid uuid too -- only that lets getQuotationHistory's users join
+// (and a `tests/services/quotation.test.ts`-local users-row insert) resolve correctly.
+const OWNER_ID = '00000000-0000-4000-8000-000000000001';
+const owner = (orgId: string): AppUser => ({ id: OWNER_ID, email: 'o', name: 'O', role: 'OWNER', employeeId: null, orgId });
 const sales = (orgId: string): AppUser => ({ id: 'u-sales', email: 's', name: 'S', role: 'SALES', employeeId: null, orgId });
 
 beforeAll(migrateTestDb);
@@ -233,5 +238,27 @@ describe('quotation service', () => {
     const apps = await testDb.select().from(schemeApplications).where(eq(schemeApplications.quotationId, q.id));
     expect(apps.length).toBe(1);
     expect(apps[0].quotationItemId).toBe(itemB.id);
+  });
+
+  it('getQuotationHistory returns the quotation + its approvals audit trail in order, with resolved names', async () => {
+    const { orgId } = await seedBase();
+    await testDb.insert(users).values({
+      id: OWNER_ID, orgId, email: 'owner@example.com', name: 'O', role: 'OWNER', status: 'active',
+    });
+    const { product } = await seedProduct(orgId);
+    const d = await seedDist(orgId);
+    const q = await createQuotation(owner(orgId), {
+      distributorId: d.id, validUntil: '2026-12-31',
+      items: [{ productId: product.id, qty: 5, requestedRate: 12000 }], // PENDING band
+    });
+    await submitQuotation(owner(orgId), q.id); // self-approves
+    await setQuotationStatus(owner(orgId), q.id, 'ACCEPTED');
+
+    const history = await getQuotationHistory(orgId, q.id);
+    // submitQuotation writes the price_approval 'auto_approve' audit row INSIDE its
+    // per-item loop, then the quotation 'submit' row AFTER the loop -- so chronological
+    // order (ORDER BY createdAt ASC) is auto_approve before submit, not the reverse.
+    expect(history.map((h) => h.action)).toEqual(['create', 'auto_approve', 'submit', 'status']);
+    expect(history[0].userName).toBe('O'); // seeded owner() AppUser.name
   });
 });
