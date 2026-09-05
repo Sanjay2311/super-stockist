@@ -1578,7 +1578,7 @@ tracked by this log.
   classifiers), `listNotifications`/`markRead`/`unreadCount`/`createNotification`;
   wired `createNotification` inline into `convertLead` for the positive
   new-distributor event.
-- **Task 6** (commit `847243c`) — `src/app/api/cron/alerts/route.ts`: `POST`
+- **Task 6** (commit `847243c`) — `src/app/api/cron/alerts/route.ts`: `GET`
   endpoint gated on an `x-cron-secret` header (`CRON_SECRET` env), calls
   `runAlertScan`; system-generated, does not `writeAudit`.
 - **Task 7** (commit `76a7445`) — `src/components/notification-bell.tsx`: header
@@ -1611,8 +1611,8 @@ tracked by this log.
   one dynamic route (SheetJS/`xlsx`) serving CSV for all four report kinds.
 - **Task 14** (commits `5b9e69d`, fix `fc67515`) — `getQuotationHistory` added to
   `src/server/services/quotation.ts` (reads `audit_log` rows for a quotation,
-  newest first, joined to the acting user's name); a "History" section added to
-  `src/app/(app)/quotations/[id]/page.tsx`.
+  oldest first — `orderBy(asc(auditLog.createdAt))` — joined to the acting user's
+  name); a "History" section added to `src/app/(app)/quotations/[id]/page.tsx`.
 - **Task 15** (this entry) — smoke sweep extension + debt ledger, detail below.
 
 ### Task 15 detail
@@ -1623,12 +1623,17 @@ tracked by this log.
   clicks `EOD`, asserts the URL carries `?mode=eod` and `Tomorrow: priorities`
   renders; visits `/reports` then `/reports/pipeline` (asserts a table renders)
   then `/reports/employees` (asserts the page renders — data may be empty on
-  fresh demo data); opens the first quotation in `/quotations` and asserts the
-  History section renders with at least one entry; opens the notification bell
-  and confirms the panel opens with no server error. Matches the file's existing
-  `assertNoServerError` helper and dynamic-skip convention (`test.skip` if no
-  quotations exist yet); not run here per the brief — no browser/dev server
-  available in this dispatch, same as every other spec in this file.
+  fresh demo data); builds and submits its own quotation via the UI (the
+  demo-seeded quotation is inserted directly via `db.insert()` in `seed.ts`,
+  bypassing `createQuotation()`, so it carries zero audit rows — only a
+  quotation built through the real create/submit path has History entries) and
+  asserts the History section shows a real entry (`ol li.border-l-2`, the class
+  only a real row carries) with the "No history yet." empty state absent;
+  opens the notification bell and confirms the panel opens with no server
+  error. Matches the file's existing `assertNoServerError` helper and
+  create-via-UI convention (same pattern as the `m2b` test); not run here per
+  the brief — no browser/dev server available in this dispatch, same as every
+  other spec in this file.
 - **`docs/BUILD-LOG.md`** — this consolidated Tasks 1–15 entry (M3 tasks were
   previously tracked only in the SDD ledger, not this file).
 - **`docs/PONYTAIL-DEBT.md`** — 4 new rows: (1) the deferred

@@ -306,16 +306,31 @@ test.describe('OWNER smoke sweep', () => {
     await expect(page.getByRole('heading', { name: 'Employees report' })).toBeVisible();
 
     // ── Quotation detail: History section ──────────────────────────────────
-    await page.goto('/quotations');
+    // Build our own quotation via the UI rather than opening whichever quotation
+    // happens to sort first on /quotations: the demo-seeded quotation is inserted
+    // directly via db.insert() in seed.ts (bypassing createQuotation()), so it has
+    // zero audit rows and no History entries. Only quotations created through the
+    // real create/submit path get one.
+    await page.goto('/quotations/new');
     await assertNoServerError(page);
-    const quoteLink = page.getByRole('link', { name: /^Q-/ }).first();
-    const quoteCount = await quoteLink.count();
-    test.skip(quoteCount === 0, 'no quotations in demo data');
-    await quoteLink.click();
+    await page.getByLabel('Party').selectOption({ label: 'Coastal Trading Company' });
+    await page.getByLabel('Valid until').fill('2026-12-31');
+    await page.getByLabel('Product').selectOption({ index: 1 });
+    await page.getByLabel('Qty').fill('5');
+    await page.getByRole('button', { name: 'Create quotation' }).click();
     await expect(page).toHaveURL(/\/quotations\/[0-9a-f-]{36}$/);
     await assertNoServerError(page);
+    await page.getByRole('button', { name: 'Submit quotation' }).click();
+    await assertNoServerError(page);
+
     await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
-    await expect(page.locator('ol li').first()).toBeVisible();
+    // The empty state ("No history yet.") renders as its own <li> in the same <ol>, so
+    // asserting any <li> is visible would pass whether or not real history exists. Assert
+    // the empty state is absent AND that a real entry (which carries the
+    // `border-l-2 border-neutral-200` class in the page's JSX; the empty-state <li> does
+    // not) is present.
+    await expect(page.getByText('No history yet.')).toHaveCount(0);
+    await expect(page.locator('ol li.border-l-2').first()).toBeVisible();
 
     // ── Notification bell: open the panel (with or without unread items) ──
     const bell = page.getByRole('button', { name: 'Notifications' });
