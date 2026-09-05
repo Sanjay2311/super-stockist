@@ -9,7 +9,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await requireUser();
   const [demoLoaded, notifications, unread] = await Promise.all([
     hasDemoData(user.orgId),
-    listNotifications(user, { limit: 20 }),
+    // Raised from 20 to 100 so the visible panel list is roughly consistent with
+    // `unreadCount`'s cap of 999 — a full redesign of retention/pagination is
+    // deliberately out of scope for this fix wave (see PONYTAIL-DEBT).
+    listNotifications(user, { limit: 100 }),
     unreadCount(user),
   ]);
   return (

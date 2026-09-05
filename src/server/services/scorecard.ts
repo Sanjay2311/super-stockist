@@ -3,10 +3,12 @@ import { db } from '@/server/db/client';
 import { activities, distributorLeads } from '@/server/db/schema/crm';
 import { stageRank, type LeadStage } from '@/domain/pipeline';
 import { listEmployees } from './employee';
+import { IST_OFFSET_MIN } from './dailyReport';
 
-const IST_OFFSET_MIN = 330;
-
-/** UTC bounds `[start of from's IST day, end of to's IST day)`. */
+/** UTC bounds `[start of from's IST day, end of to's IST day)`. Genuinely different
+ *  math from the single-day `istDayKey`/`istDayBounds` helpers in `dailyReport.ts` (a
+ *  range, not one day) — this stays its own function, but imports the shared offset
+ *  constant above instead of redefining it (see the plan's IST Global Constraint). */
 export function istRangeBounds(from: Date, to: Date): { start: Date; end: Date } {
   const shift = (d: Date) => new Date(d.getTime() + IST_OFFSET_MIN * 60_000);
   const startShifted = shift(from);

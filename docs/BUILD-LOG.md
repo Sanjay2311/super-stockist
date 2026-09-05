@@ -1657,3 +1657,62 @@ tracked by this log.
 - Shortcuts: none beyond the 4 PONYTAIL-DEBT rows above, all pre-existing scope
   decisions from Tasks 8/9/10/12 being formally logged for the first time here,
   not new corners cut by Task 15 itself.
+
+### Final-review fix wave (2026-09-05)
+
+One dispatch closing 1 Critical + 11 Important findings from the whole-branch
+review, after all 15 tasks above individually passed review:
+
+- **Critical** — `commandCenterSummary` (`src/server/services/commandCenter.ts`)
+  never scoped anything by role/employeeId, leaking org-wide lead/task/follow-up
+  data and OWNER-only fields (`attention.pendingApprovals`,
+  `.missingDailyReports`, `.exclusivityOverrides`) to SALES. Fixed: the same
+  `scope = { assignedEmployeeId }` pattern the M1 dashboard used is restored for
+  `listLeads`/`getTodayView`/`getFollowUpBuckets`; the three OWNER-only
+  `attention` fields are now `null` (not computed) for a role lacking the
+  matching `can(user, ...)` permission, and `src/app/(app)/page.tsx` renders
+  those sections only when present. Quotations/distributors stay org-wide,
+  matching how `/quotations` and `/distributors` already treat SALES elsewhere.
+- `notification.ts`'s `markRead` gained the same visibility check
+  `listNotifications` already had (a shared `visibilityConds` helper), so a
+  caller can no longer mark a notification outside their scope as read; added
+  `markAllRead` + a bell button + a raised panel fetch limit (20 → 100).
+- `api/cron/alerts/route.ts` no longer imports `db`/`orgs` directly — new
+  `src/server/services/org.ts` (`listOrgs`) closes the one architectural-boundary
+  crossing outside `services`/`db`.
+- Consolidated three reinvented IST-offset helpers into one exported
+  `istDayKey`/`istDayBounds` pair in `dailyReport.ts`; fixed genuine UTC-vs-IST
+  bugs this surfaced in `commandCenter.ts` (month-start, yesterday bounds),
+  `reports.ts` (`distributorsReport`'s yesterday key), and `distributor.ts`'s
+  `dedupeDate` computation.
+- `reports.ts`: `pipelineReport`/`quotationsReport`/`distributorsReport` now
+  apply `from`/`to`/`territoryId`/`employeeId` (previously only `employeesReport`
+  did, despite all four report pages rendering the same `<GlobalFilters>`);
+  `categoryId` stays deliberately unapplied on pipeline/distributors (no
+  reliable category association exists on either table today) — documented
+  inline and in PONYTAIL-DEBT.
+- `followup.ts`'s `LeadLite` gained `assignedEmployeeId`, so
+  `followUpOverdueAlert` targets the lead's actual assignee instead of a
+  hardcoded `null` (matching `quotationStaleAlert`'s pattern).
+- Replaced the `xlsx` (SheetJS) CSV export in `api/reports/[kind]/export/
+  route.ts` with a small hand-rolled `src/lib/csv.ts` writer that also
+  neutralizes leading `=`/`+`/`-`/`@` (CSV-formula-injection); removed the
+  `xlsx` dependency entirely (`npm uninstall xlsx`).
+- `commandCenter.ts`'s missing-daily-report check used `gte(reportDate,
+  yesterday)` (a submitted-today-but-not-yesterday employee wrongly counted as
+  compliant); now `eq(reportDate, yesterdayYmd)`, matching `notification.ts`/
+  `reports.ts`.
+- Added a `[triggers]` cron block to `wrangler.toml` (`0 2 * * *`, 2am UTC) —
+  inert until this app is deployed to Cloudflare Workers, but the config now
+  exists for when it is; the Settings page's "runs nightly ... once deployed"
+  copy was already accurate and needed no change.
+- `seed.ts`'s `purgeDemo` now also deletes all `notifications` rows for the org
+  (the table carries no `isDemo` flag — it's a derived read model, safe to wipe).
+- Tests: `npm test` run twice, stable pass count both times; new coverage added
+  for the SALES-scoping fix, `markRead`'s ownership check, a report filter
+  actually changing its result set, `missingDailyReports`'s corrected predicate,
+  and `followUpOverdueAlert`'s real employee id. `npx tsc --noEmit` clean.
+  `npm run lint` clean. `npm run build` succeeds.
+- PONYTAIL-DEBT: corrected the global-filters row (Reports filters now actually
+  apply, `categoryId` caveat documented) and added one new row for the
+  deliberately-parked notification retention/auto-resolve/pagination gap.

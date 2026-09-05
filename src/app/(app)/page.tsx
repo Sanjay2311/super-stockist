@@ -70,7 +70,9 @@ export default async function DashboardPage({
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Stat label="Follow-ups due" value={s.today.followUpsDueToday} />
             <Stat label="Hot leads, no action" value={s.attention.hotLeadsNoAction.length} />
-            <Stat label="Pending approvals" value={s.attention.pendingApprovals} />
+            {s.attention.pendingApprovals != null && (
+              <Stat label="Pending approvals" value={s.attention.pendingApprovals} />
+            )}
           </div>
         </section>
       )}
@@ -78,7 +80,11 @@ export default async function DashboardPage({
       <section className="space-y-3">
         <h2 className="font-semibold">What needs my attention?</h2>
         <ul className="space-y-1 text-sm">
-          {s.attention.pendingApprovals > 0 && (
+          {/* pendingApprovals / exclusivityOverrides / missingDailyReports are `null`
+              (not computed) for a role that lacks the underlying permission — e.g. a
+              SALES rep — so those three sections simply don't render for them, rather
+              than showing an empty box or a literal null. */}
+          {s.attention.pendingApprovals != null && s.attention.pendingApprovals > 0 && (
             <li className="rounded border border-amber-300 bg-amber-50 px-3 py-2">
               <Link href="/approvals" className="text-blue-700 hover:underline">
                 {s.attention.pendingApprovals} quotation line(s) awaiting price approval
@@ -93,7 +99,7 @@ export default async function DashboardPage({
               — hot lead, no next action
             </li>
           ))}
-          {s.attention.exclusivityOverrides.map((d) => (
+          {s.attention.exclusivityOverrides?.map((d) => (
             <li key={d.id} className="rounded border px-3 py-2">
               <Link href={`/distributors/${d.id}`} className="text-blue-700 hover:underline">
                 {d.businessName}
@@ -101,15 +107,15 @@ export default async function DashboardPage({
               — exclusivity override on record
             </li>
           ))}
-          {s.attention.missingDailyReports > 0 && (
+          {s.attention.missingDailyReports != null && s.attention.missingDailyReports > 0 && (
             <li className="rounded border px-3 py-2">
               {s.attention.missingDailyReports} employee(s) missing yesterday&apos;s daily report
             </li>
           )}
-          {s.attention.pendingApprovals === 0 &&
+          {!(s.attention.pendingApprovals ?? 0) &&
             s.attention.hotLeadsNoAction.length === 0 &&
-            s.attention.exclusivityOverrides.length === 0 &&
-            s.attention.missingDailyReports === 0 && (
+            (s.attention.exclusivityOverrides ?? []).length === 0 &&
+            !(s.attention.missingDailyReports ?? 0) && (
               <li className="text-neutral-400">Nothing needs attention right now.</li>
             )}
         </ul>

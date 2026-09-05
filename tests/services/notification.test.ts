@@ -44,6 +44,18 @@ describe('notification service', () => {
     expect(rows[0].severity).toBe('critical'); // 4 days overdue
   });
 
+  it('runAlertScan\'s follow-up-overdue alert is targeted at the lead\'s assigned employee (not hardcoded null)', async () => {
+    const { orgId } = await seedBase();
+    const empId = '33333333-3333-3333-3333-333333333333';
+    await testDb.insert(distributorLeads).values({
+      orgId, businessName: 'Assigned Overdue Co', contactPerson: 'x', phone: '9800000011',
+      stage: 'CONTACTED', nextFollowUpAt: new Date(Date.now() - 2 * 86_400_000), assignedEmployeeId: empId,
+    });
+    await runAlertScan(orgId);
+    const [row] = await testDb.select().from(notifications).where(eq(notifications.category, 'follow_up_overdue'));
+    expect(row.targetUserId).toBe(empId);
+  });
+
   it('listNotifications scopes by role: OWNER sees all, SALES sees only null-target + own-target', async () => {
     const { orgId } = await seedBase();
     await createNotification(orgId, newDistributorAppointedAlert({ distributorId: 'd1', businessName: 'X' }), '2026-09-04');
@@ -69,5 +81,25 @@ describe('notification service', () => {
     const updated = await markRead(user, row.id);
     expect(updated.readAt).not.toBeNull();
     expect(await unreadCount(user)).toBe(0);
+  });
+
+  it('markRead rejects marking a notification outside the caller\'s scope', async () => {
+    const { orgId } = await seedBase();
+    // targeted at a different employee than the caller
+    await createNotification(orgId, {
+      category: 'follow_up_overdue', severity: 'attention', title: 'targeted',
+      entityType: 'lead', entityId: 'l1', targetUserId: 'emp-1',
+    }, '2026-09-04');
+    const [row] = await testDb.select().from(notifications);
+
+    const otherSales = sales(orgId, 'emp-2');
+    await expect(markRead(otherSales, row.id)).rejects.toThrow();
+    const stillUnread = await testDb.select().from(notifications).where(eq(notifications.id, row.id));
+    expect(stillUnread[0].readAt).toBeNull(); // not mutated by the rejected caller
+
+    // the owning employee CAN mark it read
+    const owningSales = sales(orgId, 'emp-1');
+    const updated = await markRead(owningSales, row.id);
+    expect(updated.readAt).not.toBeNull();
   });
 });

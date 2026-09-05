@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import type { NotificationRow } from '@/server/services/notification';
-import { markReadAction } from '@/app/(app)/notifications/actions';
+import { markReadAction, markAllReadAction } from '@/app/(app)/notifications/actions';
 
 const SEVERITY_BADGE: Record<NotificationRow['severity'], string> = {
   critical: 'bg-red-100 text-red-800',
@@ -110,6 +110,15 @@ export function NotificationBell({
       )}
       {open && (
         <div className="absolute right-0 z-20 mt-2 max-h-[70vh] w-80 overflow-y-auto rounded-lg border bg-white shadow-lg">
+          {unread > 0 && (
+            <div className="flex justify-end border-b px-3 py-1.5">
+              <form action={markAllReadAction}>
+                <button type="submit" className="text-xs text-neutral-500 hover:text-neutral-900">
+                  Mark all read
+                </button>
+              </form>
+            </div>
+          )}
           {groups.length === 0 ? (
             <p className="px-3 py-4 text-sm text-neutral-500">No notifications.</p>
           ) : (

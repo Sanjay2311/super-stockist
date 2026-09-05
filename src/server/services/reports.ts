@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, gte, lt, lte, isNull } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { distributorLeads, employeeDailyReports } from '@/server/db/schema/crm';
 import { distributors } from '@/server/db/schema/distributor';
@@ -7,11 +7,24 @@ import { employees } from '@/server/db/schema/identity';
 import { quotations, quotationItems } from '@/server/db/schema/quotation';
 import type { ReportFilters } from '@/lib/filters';
 import { listScorecards, type EmployeeScorecard } from './scorecard';
+import { istDayBounds, istDayKey } from './dailyReport';
 
 export async function pipelineReport(orgId: string, filters: ReportFilters) {
   const conds = [eq(distributorLeads.orgId, orgId), isNull(distributorLeads.deletedAt)];
   if (filters.territoryId) conds.push(eq(distributorLeads.territoryId, filters.territoryId));
   if (filters.employeeId) conds.push(eq(distributorLeads.assignedEmployeeId, filters.employeeId));
+  // "Pipeline as of a date range" reads as "leads created in that window" — there's no
+  // existing precedent elsewhere for a different pipeline-snapshot semantic, so from/to
+  // filter on createdAt, using the shared IST day-bounds helper (not raw UTC) per the
+  // plan's Global Constraints.
+  if (filters.from) conds.push(gte(distributorLeads.createdAt, istDayBounds(new Date(filters.from)).start));
+  if (filters.to) conds.push(lt(distributorLeads.createdAt, istDayBounds(new Date(filters.to)).end));
+  // categoryId is deliberately NOT applied here: distributor_leads has no direct
+  // category_id column or FK — only an unstructured `current_categories` jsonb field
+  // that nothing in the app populates/reads today. The only path to a real categoryId
+  // is via a lead's quotations' line items' products, which is a weak/indirect
+  // association for a lead-stage pipeline cut (a lead can have quotations spanning
+  // multiple categories, or none yet) — not wired.
   const rows = await db.select({
     stage: distributorLeads.stage, lostReason: distributorLeads.lostReason,
     territoryName: territories.name, employeeName: employees.name,
@@ -41,6 +54,13 @@ export async function pipelineReport(orgId: string, filters: ReportFilters) {
 export async function quotationsReport(orgId: string, filters: ReportFilters) {
   const conds = [eq(quotations.orgId, orgId), isNull(quotations.deletedAt)];
   if (filters.employeeId) conds.push(eq(quotations.employeeId, filters.employeeId));
+  // quoteDate is already a date-only ('YYYY-MM-DD') column — no timezone conversion needed.
+  if (filters.from) conds.push(gte(quotations.quoteDate, filters.from));
+  if (filters.to) conds.push(lte(quotations.quoteDate, filters.to));
+  // territoryId has no direct column on quotations — goes via the linked distributor
+  // (lead-sourced quotations have no distributorId/territory and are excluded by this
+  // filter, which is the correct behavior for a territory cut).
+  if (filters.territoryId) conds.push(eq(distributors.territoryId, filters.territoryId));
   const rows = await db.select({
     status: quotations.status, employeeId: quotations.employeeId, employeeName: employees.name,
     distributorId: quotations.distributorId, distributorName: distributors.businessName,
@@ -83,6 +103,14 @@ export async function employeesReport(orgId: string, filters: ReportFilters): Pr
 export async function distributorsReport(orgId: string, filters: ReportFilters) {
   const conds = [eq(distributors.orgId, orgId), isNull(distributors.deletedAt)];
   if (filters.territoryId) conds.push(eq(distributors.territoryId, filters.territoryId));
+  if (filters.employeeId) conds.push(eq(distributors.assignedEmployeeId, filters.employeeId));
+  // from/to reads as "distributors created/appointed in that window", mirroring
+  // pipelineReport's createdAt semantic — shared IST day-bounds helper, not raw UTC.
+  if (filters.from) conds.push(gte(distributors.createdAt, istDayBounds(new Date(filters.from)).start));
+  if (filters.to) conds.push(lt(distributors.createdAt, istDayBounds(new Date(filters.to)).end));
+  // categoryId is deliberately NOT applied here, same caveat as pipelineReport:
+  // distributors.product_categories is an unstructured jsonb field nothing in the app
+  // populates today — there is no reliable categoryId association to filter on.
   const rows = await db.select({
     status: distributors.status, grade: distributors.grade, territoryName: territories.name,
   }).from(distributors).leftJoin(territories, eq(territories.id, distributors.territoryId)).where(and(...conds));
@@ -98,7 +126,7 @@ export async function distributorsReport(orgId: string, filters: ReportFilters) 
 
   const emps = await db.select({ id: employees.id, name: employees.name }).from(employees)
     .where(and(eq(employees.orgId, orgId), eq(employees.status, 'active')));
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const yesterday = istDayKey(new Date(Date.now() - 86_400_000));
   const submittedRows = await db.select({ employeeId: employeeDailyReports.employeeId }).from(employeeDailyReports)
     .where(and(eq(employeeDailyReports.orgId, orgId), eq(employeeDailyReports.reportDate, yesterday)));
   const submittedSet = new Set(submittedRows.map((r) => r.employeeId));

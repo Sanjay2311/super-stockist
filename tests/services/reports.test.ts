@@ -3,6 +3,7 @@ import { migrateTestDb, resetDb, testDb } from '../helpers/db';
 import { seedBase } from '@/server/db/seed';
 import { distributorLeads } from '@/server/db/schema/crm';
 import { distributors } from '@/server/db/schema/distributor';
+import { territories } from '@/server/db/schema/territory';
 import { categories, products } from '@/server/db/schema/product';
 import { quotations, quotationItems } from '@/server/db/schema/quotation';
 import { employees } from '@/server/db/schema/identity';
@@ -57,6 +58,28 @@ describe('reports service', () => {
     const dist = r.byDistributor.find((b) => b.businessName === 'Coastal');
     expect(dist?.count).toBe(1);
     expect(dist?.value).toBe(35000);
+  });
+
+  it('quotationsReport territoryId filter actually changes the result set (previously silently ignored)', async () => {
+    const { orgId } = await seedBase();
+    const [zoneA] = await testDb.insert(territories).values({ orgId, name: 'Zone A', type: 'ZONE', parentId: null }).returning();
+    const [zoneB] = await testDb.insert(territories).values({ orgId, name: 'Zone B', type: 'ZONE', parentId: null }).returning();
+    const [distA] = await testDb.insert(distributors).values({
+      orgId, businessName: 'Alpha Traders', contactPerson: 'x', phone: '9800000040', status: 'ACTIVE', territoryId: zoneA.id,
+    }).returning();
+    const [distB] = await testDb.insert(distributors).values({
+      orgId, businessName: 'Beta Traders', contactPerson: 'x', phone: '9800000041', status: 'ACTIVE', territoryId: zoneB.id,
+    }).returning();
+    await testDb.insert(quotations).values([
+      { orgId, quoteNo: 'Q-202609-010', distributorId: distA.id, quoteDate: '2026-09-05', validUntil: '2026-12-31' },
+      { orgId, quoteNo: 'Q-202609-011', distributorId: distB.id, quoteDate: '2026-09-05', validUntil: '2026-12-31' },
+    ]);
+
+    const unfiltered = await quotationsReport(orgId, { from: null, to: null, territoryId: null, employeeId: null, categoryId: null });
+    expect(unfiltered.byDistributor.map((b) => b.businessName).sort()).toEqual(['Alpha Traders', 'Beta Traders']);
+
+    const filtered = await quotationsReport(orgId, { from: null, to: null, territoryId: zoneA.id, employeeId: null, categoryId: null });
+    expect(filtered.byDistributor.map((b) => b.businessName)).toEqual(['Alpha Traders']);
   });
 
   it('employeesReport defaults to the last 7 days when filters are null and returns one row per active employee', async () => {

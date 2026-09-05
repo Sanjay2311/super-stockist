@@ -7,3 +7,9 @@ assets = { directory = ".open-next/assets", binding = "ASSETS" }
 [vars]
 NEXT_PUBLIC_SUPABASE_URL = ""
 # secrets set via `wrangler secret put`: SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL, CRON_SECRET
+
+[triggers]
+# 2am UTC (7:30am IST) nightly alert scan — hits /api/cron/alerts, gated by CRON_SECRET.
+# Inert until this app is actually deployed to Cloudflare Workers; the manual "Run alert
+# scan" button in Settings works regardless of this trigger.
+crons = ["0 2 * * *"]

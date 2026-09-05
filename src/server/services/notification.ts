@@ -13,15 +13,11 @@ import { listTerritories } from './territory';
 import { listEmployees } from './employee';
 import { getConfig } from './config';
 import { employeeDailyReports } from '@/server/db/schema/crm';
+import { istDayKey } from './dailyReport';
 import type { AppUser } from '@/server/auth/session';
 
 export type NotificationRow = typeof notifications.$inferSelect;
 
-const IST_OFFSET_MIN = 330;
-const ymdIst = (d: Date) => {
-  const shifted = new Date(d.getTime() + IST_OFFSET_MIN * 60_000);
-  return shifted.toISOString().slice(0, 10);
-};
 const daysBetween = (a: Date, b: Date) => Math.floor((a.getTime() - b.getTime()) / 86_400_000);
 
 export async function createNotification(
@@ -45,14 +41,14 @@ export async function createNotification(
 /** System job — no AppUser, gated by the route handler's CRON_SECRET, not assertCan.
  *  Scoped to what exists today: no payments/stock/reorder-cadence alerts (Phase 2). */
 export async function runAlertScan(orgId: string, now: Date = new Date()): Promise<{ created: number }> {
-  const today = ymdIst(now);
+  const today = istDayKey(now);
   const candidates: AlertCandidate[] = [];
 
   const followUps = await getFollowUpBuckets(orgId, { now });
   for (const l of followUps.overdue) {
     const daysOverdue = l.nextFollowUpAt ? daysBetween(now, new Date(l.nextFollowUpAt)) : 0;
     candidates.push(followUpOverdueAlert({
-      leadId: l.id, businessName: l.businessName, daysOverdue, assignedEmployeeId: null,
+      leadId: l.id, businessName: l.businessName, daysOverdue, assignedEmployeeId: l.assignedEmployeeId,
     }));
   }
 
@@ -89,7 +85,7 @@ export async function runAlertScan(orgId: string, now: Date = new Date()): Promi
   }
 
   const yesterday = new Date(now.getTime() - 86_400_000);
-  const yesterdayYmd = ymdIst(yesterday);
+  const yesterdayYmd = istDayKey(yesterday);
   const emps = await listEmployees(orgId, { activeOnly: true });
   const reportRows = await db.select({ employeeId: employeeDailyReports.employeeId })
     .from(employeeDailyReports)
@@ -116,9 +112,10 @@ export async function runAlertScan(orgId: string, now: Date = new Date()): Promi
   return { created };
 }
 
-export async function listNotifications(
-  user: AppUser, opts: { unreadOnly?: boolean; limit?: number } = {},
-): Promise<NotificationRow[]> {
+/** The same org + role/employee visibility rule `listNotifications` and `markRead`/
+ *  `markAllRead` all need: OWNER sees every row for the org; anyone else only sees
+ *  rows targeted at their own employeeId, or untargeted/org-wide rows. */
+function visibilityConds(user: AppUser) {
   const conds = [eq(notifications.orgId, user.orgId)];
   if (user.role !== 'OWNER') {
     // targetUserId stores an *employee* id (see followUpOverdueAlert's
@@ -128,16 +125,36 @@ export async function listNotifications(
       ? or(isNull(notifications.targetUserId), eq(notifications.targetUserId, user.employeeId))!
       : isNull(notifications.targetUserId));
   }
+  return conds;
+}
+
+export async function listNotifications(
+  user: AppUser, opts: { unreadOnly?: boolean; limit?: number } = {},
+): Promise<NotificationRow[]> {
+  const conds = visibilityConds(user);
   if (opts.unreadOnly) conds.push(isNull(notifications.readAt));
   return db.select().from(notifications).where(and(...conds))
     .orderBy(desc(notifications.createdAt)).limit(opts.limit ?? 50);
 }
 
 export async function markRead(user: AppUser, id: string): Promise<NotificationRow> {
+  // Load first and check the caller's visibility scope (same rule as `listNotifications`)
+  // before mutating — otherwise any authenticated user could mark an arbitrary
+  // notification (including one targeted at a different employee) as read.
+  const [existing] = await db.select().from(notifications)
+    .where(and(eq(notifications.id, id), ...visibilityConds(user)));
+  if (!existing) throw new Error('not found');
   const [row] = await db.update(notifications).set({ readAt: new Date() })
-    .where(and(eq(notifications.id, id), eq(notifications.orgId, user.orgId))).returning();
-  if (!row) throw new Error('not found');
+    .where(eq(notifications.id, id)).returning();
   return row;
+}
+
+/** Marks every notification currently visible to `user` (per `visibilityConds`) as
+ *  read. Used by the "mark all read" bell action. */
+export async function markAllRead(user: AppUser): Promise<{ updated: number }> {
+  const rows = await db.update(notifications).set({ readAt: new Date() })
+    .where(and(...visibilityConds(user), isNull(notifications.readAt))).returning({ id: notifications.id });
+  return { updated: rows.length };
 }
 
 export async function unreadCount(user: AppUser): Promise<number> {

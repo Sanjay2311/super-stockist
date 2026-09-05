@@ -1,9 +1,9 @@
-import * as XLSX from 'xlsx';
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/server/auth/session';
 import { can } from '@/server/auth/permissions';
 import { pipelineReport, quotationsReport, employeesReport, distributorsReport } from '@/server/services/reports';
 import { parseFilters } from '@/lib/filters';
+import { toCsv } from '@/lib/csv';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,8 +69,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ kind: st
     : await distributorsReport(user.orgId, filters);
 
   const rows = flatten(kind as Kind, report);
-  const sheet = XLSX.utils.json_to_sheet(rows);
-  const csv = XLSX.utils.sheet_to_csv(sheet);
+  const csv = toCsv(rows);
 
   return new Response(csv, {
     headers: {
